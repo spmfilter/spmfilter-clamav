@@ -1,6 +1,5 @@
 /*
  * spmfilter clamav plugin
- * by Axel Steiner <ast@treibsand.com>
  */
 
 #define _GNU_SOURCE
@@ -8,21 +7,25 @@
 #include <glib.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
-#include <netdb.h>
+#include <fcntl.h>
 #include <errno.h>
 #include <string.h>
+#include <stdlib.h>
 #include <spmfilter.h>
 
 #define THIS_MODULE "clamav"
 
-#define STREAM "STREAM\r\n"
+enum {
+	BUFSIZE = 512
+};
 
 typedef struct {
 	char *host;
-	char *port;
+	int port;
 	int max_scan_size;
 	gboolean add_header;
 	gboolean send_report;
+	char *header_name;
 } CLAMAV_SETTINGS;
 
 int parse_clam_config(SETTINGS *settings, CLAMAV_SETTINGS *clam_settings) {
@@ -39,9 +42,9 @@ int parse_clam_config(SETTINGS *settings, CLAMAV_SETTINGS *clam_settings) {
 	if (clam_settings->host == NULL) 
 		clam_settings->host = g_strdup("127.0.0.1");
 
-	clam_settings->port = g_key_file_get_string(keyfile,"clamav","port",NULL);
+	clam_settings->port = g_key_file_get_integer(keyfile,"clamav","port",NULL);
 	if (!clam_settings->port)
-		clam_settings->port = g_strdup("3310");
+		clam_settings->port = 3310;
 	
 	clam_settings->max_scan_size = g_key_file_get_integer(keyfile,"clamav","max_scan_size",NULL);
 	if (!clam_settings->max_scan_size)
@@ -55,167 +58,109 @@ int parse_clam_config(SETTINGS *settings, CLAMAV_SETTINGS *clam_settings) {
 	if (!clam_settings->add_header)
 		clam_settings->add_header = FALSE;
 	
+	clam_settings->header_name = g_key_file_get_string(keyfile,"clamav","header_name",NULL);
+	if (clam_settings->header_name == NULL)
+		clam_settings->header_name = g_strdup("X-VirusScan");
+	
 	TRACE(TRACE_DEBUG,"clam_settings->host: %s",clam_settings->host);
-	TRACE(TRACE_DEBUG,"clam_settings->port: %s",clam_settings->port);
+	TRACE(TRACE_DEBUG,"clam_settings->port: %d",clam_settings->port);
 	TRACE(TRACE_DEBUG,"clam_settings->max_scan_size: %d",clam_settings->max_scan_size);
 	TRACE(TRACE_DEBUG,"clam_settings->send_report: %d",clam_settings->send_report);
 	TRACE(TRACE_DEBUG,"clam_settings->add_header: %d",clam_settings->add_header);
+	TRACE(TRACE_DEBUG,"clam_settings->header_name: %s",clam_settings->header_name);
 	
 	return 0;
 }
 
 int load(SETTINGS *settings, MAILCONN *mconn) {
-	int smaster, sdata, errno;
-	struct sockaddr_in sa_in;
-	struct addrinfo hints, *res;
-	char *line;
-	char *port_s;
-	GIOChannel *master, *data, *msg;
-	GError *error = NULL;
-	gsize length;
-	char *result;
+	int fd_socket, errno, ret, fh;
+	struct sockaddr_in sa;
+	int bytes = 0;
+	uint32_t conv;
+	char r_buf[BUFSIZE];
+	char *transmit;
 	CLAMAV_SETTINGS *clam_settings;
 	clam_settings = g_slice_new(CLAMAV_SETTINGS);
 
 	TRACE(TRACE_DEBUG,"clamav loaded");
 	if (parse_clam_config(settings,clam_settings)!=0) 
 		return -1;
-	
-	memset(&hints, 0, sizeof(hints));
-	hints.ai_family = PF_INET;
-	hints.ai_socktype = SOCK_STREAM;
 
-	if ((errno = getaddrinfo(clam_settings->host, clam_settings->port, &hints, &res)) != 0) {
-		TRACE(TRACE_ERR,"getaddrinfo(%s:%s): %s",
-			clam_settings->host,clam_settings->port,gai_strerror(errno));
+	transmit = (char *)malloc((BUFSIZE + 4) * sizeof(char));
+
+	sa.sin_family = AF_INET;
+	sa.sin_port = htons(clam_settings->port);
+	sa.sin_addr.s_addr = inet_addr(clam_settings->host);
+
+	TRACE(TRACE_DEBUG, "connecting to [%s] on port [%d]",clam_settings->host,clam_settings->port);
+	fd_socket = socket(AF_INET, SOCK_STREAM, 0);
+	if(fd_socket < 0) {
+		TRACE(TRACE_ERR,"create socket failed: %s",strerror(errno));
+		return -1; 
+	}
+	
+	ret = connect(fd_socket, (struct sockaddr *)&sa, sizeof(sa));
+	if(ret < 0) {
+		TRACE(TRACE_ERR, "unable to connect to [%s]: %s", clam_settings->host, strerror(errno));
+		return -1;
+	}
+	
+	/* open queue file */
+	fh = open(mconn->queue_file, O_RDONLY);
+	if(fh < 0) {
+		TRACE(TRACE_ERR, "unable to open queue file [%s]: %s", mconn->queue_file, strerror(errno));
+		close(fd_socket);
 		return -1;
 	}
 
-	TRACE(TRACE_DEBUG, "connecting to [%s] on port [%s]",clam_settings->host,clam_settings->port);
-	while(res) {
-		if ((smaster = socket(PF_INET, SOCK_STREAM, 0)) == -1) {
-			TRACE(TRACE_ERR,"socket(): %s",strerror(errno));
-			return -1;
-		}
+	
+	TRACE(TRACE_DEBUG,"sending command zINSTREAM");
+	
+	ret = send(fd_socket, "zINSTREAM", 10, 0);
+	if (ret <= 0) {
+		TRACE(TRACE_ERR, "sending of command failed: %s",strerror(errno));
+		close(fd_socket);
+		close(fh);
+		return -1;
+	}
+	
+	TRACE(TRACE_DEBUG,"command ok, now sending chunks...");
+	conv = htonl(BUFSIZE);
+	while((bytes = read(fh, r_buf, BUFSIZE)) > 0) {
+		memcpy(transmit, &conv, sizeof(conv));
+		memcpy(&transmit[4], r_buf, bytes);
 		
-		if (connect(smaster, res->ai_addr, sizeof(struct sockaddr)) == -1) {
-			struct sockaddr_in *sa = (struct sockaddr_in *)res->ai_addr;
-			TRACE(TRACE_ERR, "connect(%s:%d): %s", 
-				inet_ntoa(sa->sin_addr), (int)ntohs(sa->sin_port),
-				strerror(errno));
-			res = res->ai_next;
-			close(smaster);
-		} else {
-			break;
-		}
-	}
-
-	if (res == NULL) {
-		TRACE(TRACE_ERR, "unable to connect to %s", clam_settings->host);
-		return -1;
-	}
-
-	master = g_io_channel_unix_new(smaster);
-	g_io_channel_set_encoding(master,NULL,NULL);
-	if (g_io_channel_write_chars(master, STREAM, -1, NULL, &error) != G_IO_STATUS_NORMAL) {
-		TRACE(TRACE_ERR, "stream write failed: %s", error->message);
-		g_io_channel_shutdown(master,TRUE,NULL);
-		g_io_channel_unref(master);
-		close(smaster);
-		return -1;
-	} else {
-		g_io_channel_flush(master,NULL);
-	}
-
-	if (g_io_channel_read_line(master,&line,NULL,NULL,&error) != G_IO_STATUS_NORMAL) {
-		TRACE(TRACE_ERR, "stream read failed: %s", error->message);
-		return -1;
-	}
-
-	port_s = get_substring("^PORT\\s(.*)$",line,1);
-	if (port_s == NULL) {
-		TRACE(TRACE_ERR, "got no data port!");
-		return -1;
-	}
-	
-	TRACE(TRACE_DEBUG, "using port [%s] as clamav data port",port_s);
-	
-	memcpy(&sa_in, res->ai_addr, sizeof(sa_in));
-	sa_in.sin_port = htons(strtoul(port_s, NULL, 10));
-	sa_in.sin_family = AF_INET;
-
-	if ((sdata = socket(PF_INET, SOCK_STREAM, 0)) == -1) {
-		TRACE(TRACE_ERR, "socket(): %s", strerror(errno));
-		g_io_channel_shutdown(master,TRUE,NULL);
-		g_io_channel_unref(master);
-		close(smaster);
-		return -1;
-	}
-	
-	TRACE(TRACE_DEBUG, "connecting to [%s] on port [%s]",clam_settings->host,port_s);
-	sa_in.sin_port = htons(strtoul(port_s, NULL, 10));
-	if (connect(sdata, (struct sockaddr *)&sa_in, sizeof(struct sockaddr_in)) == -1) {
-		TRACE(TRACE_ERR, "connect2(): %s\n", strerror(errno));
-		g_io_channel_shutdown(master,TRUE,NULL);
-		g_io_channel_unref(master);
-		close(smaster);
-		return -1;
-	}
-
-	if ((msg = g_io_channel_new_file(mconn->queue_file, "r",&error)) == NULL) {
-		TRACE(TRACE_ERR, "error reading queue file: %s",error->message);
-		close(sdata);
-		g_io_channel_shutdown(master,TRUE,NULL);
-		g_io_channel_unref(master);
-		close(smaster);
-		return -1;
-	}
-	g_io_channel_set_encoding(msg,NULL,NULL);
-	data = g_io_channel_unix_new(sdata);
-	g_io_channel_set_encoding(data,NULL,NULL);
-
-	while (g_io_channel_read_line(msg,&line,&length,NULL,NULL) == G_IO_STATUS_NORMAL) {
-		if (g_io_channel_write_chars(data,line,length,NULL,&error) != G_IO_STATUS_NORMAL) {
-			TRACE(TRACE_ERR, "write to data stream failed: %s",error->message);
-			g_io_channel_shutdown(data,TRUE,NULL);
-			g_io_channel_unref(data);
-			g_io_channel_shutdown(msg,TRUE,NULL);
-			g_io_channel_unref(msg);
-			close(sdata);
-			g_io_channel_shutdown(master,TRUE,NULL);
-			g_io_channel_unref(master);
-			close(smaster);
+		ret = send(fd_socket, transmit, BUFSIZE + 4, 0);
+		if(ret <= 0) {
+			TRACE(TRACE_ERR,"failed to send a chunk: %s",strerror(errno));
+			close(fd_socket);
+			close(fh);
 			return -1;
-		} 
-	}
-	g_io_channel_flush(master,NULL);
-
-	g_io_channel_shutdown(data,TRUE,NULL);
-	g_io_channel_unref(data);
-	g_io_channel_shutdown(msg,TRUE,NULL);
-	g_io_channel_unref(msg);
-	close(sdata);
-
-	if (g_io_channel_read_line(master,&line,NULL,NULL,&error) != G_IO_STATUS_NORMAL) {
-		TRACE(TRACE_ERR, "stream read failed: %s", error->message);
-		return -1;
+		}
+		memset(transmit, 0, BUFSIZE+4); 
 	}
 
-	g_io_channel_shutdown(master,TRUE,NULL);
-	g_io_channel_unref(master);
-	close(smaster);
+	close(fh);
 
-	result = get_substring("^stream:\\s(.*)$",line,1);
-	if (port_s == NULL) {
-		TRACE(TRACE_ERR, "got no result on port [%s]",port_s);
+	TRACE(TRACE_DEBUG,"file done, sending 0000 chunk");
+	transmit[0] = 0;
+	transmit[1] = 0;
+	transmit[2] = 0;
+	transmit[3] = 0;
+	
+	ret = send(fd_socket, transmit, BUFSIZE + 4, 0);
+	if(ret <= 0) {
+		TRACE(TRACE_DEBUG,"failed to send terminating chunk: %s",strerror(errno));
+		close(fd_socket);
 		return -1;
 	}
 	
-	TRACE(TRACE_DEBUG,"ClamAV result [%s]",result);
-	
-	if (line != NULL)
-		g_free(line);
-	
+	/* get answer from server, will block until received */
+	ret = recv(fd_socket, r_buf, BUFSIZE, 0);
+	TRACE(TRACE_DEBUG,"got %d bytes back, message was: [%s]", ret, r_buf);
+	close(fd_socket);
+
+	g_free(transmit);
 	g_free(clam_settings->host); 
 	g_slice_free(CLAMAV_SETTINGS,clam_settings);
 
