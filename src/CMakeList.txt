@@ -1,0 +1,11 @@
+set(PLUGIN_SRC
+	main.c
+)
+
+add_library(clamav SHARED ${PLUGIN_SRC})
+target_link_libraries(clamav ${SPMFILTER_LIBRARIES} ${GLIB2_LIBRARIES})
+
+install(TARGETS diskarchive
+	RUNTIME DESTINATION bin
+	LIBRARY DESTINATION lib/spmfilter
+)

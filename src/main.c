@@ -2,8 +2,6 @@
  * spmfilter clamav plugin
  */
 
-#define _GNU_SOURCE
-
 #include <glib.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -187,7 +185,7 @@ int send_notify(SETTINGS *settings, MAILCONN *mconn, char *virname) {
 	return 0;
 }
 
-int load(SETTINGS *settings, MAILCONN *mconn) {
+int load(MailConn_T *mconn) {
 	int fd_socket, errno, ret, fh;
 	struct sockaddr_in sa;
 	int bytes = 0;
@@ -195,6 +193,7 @@ int load(SETTINGS *settings, MAILCONN *mconn) {
 	char r_buf[BUFSIZE];
 	char *transmit;
 	char *clam_result;
+	Settings *settings = get_settings();
 	clam_settings = g_slice_new(CLAMAV_SETTINGS);
 
 	TRACE(TRACE_DEBUG,"clamav loaded");

@@ -17,3 +17,8 @@ libtool
 *.la*
 *.P*
 *.libs*
+\.orig\..*$
+\.orig$
+\.chg\..*$
+\.rej$
+\.conflict\~$
