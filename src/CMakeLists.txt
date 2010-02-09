@@ -5,7 +5,7 @@ set(PLUGIN_SRC
 add_library(clamav SHARED ${PLUGIN_SRC})
 target_link_libraries(clamav ${SPMFILTER_LIBRARIES} ${GLIB2_LIBRARIES})
 
-install(TARGETS diskarchive
+install(TARGETS clamav
 	RUNTIME DESTINATION bin
 	LIBRARY DESTINATION lib/spmfilter
 )
