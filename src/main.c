@@ -1,14 +1,29 @@
-/*
- * spmfilter clamav plugin
+/* spmfilter-clamav - spmfilter ClamAV Plugin
+ * Copyright (C) 2009-2010 Werner Detter and SpaceNet AG
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 3 of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <glib.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <fcntl.h>
-#include <errno.h>
 #include <string.h>
 #include <stdlib.h>
+#include <fcntl.h>
+#include <errno.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <glib.h>
+
 #include <spmfilter.h>
 
 
@@ -27,50 +42,44 @@ typedef struct {
 	char *host;
 	int port;
 	int max_scan_size;
-	gboolean add_header;
+	int add_header;
 	char *header_name;
 	int notification;
 	char *notification_template;
 	char *notification_sender;
-} CLAMAV_SETTINGS;
+} ClamAVSettings_T;
 
-CLAMAV_SETTINGS *clam_settings;
+ClamAVSettings_T *clam_settings;
 
-int parse_clam_config(SETTINGS *settings) {
-	GError *error = NULL;
-	GKeyFile *keyfile;
+int parse_clam_config(void) {
+	clam_settings = g_slice_new(ClamAVSettings_T);
 
-	keyfile = g_key_file_new ();
-	if (!g_key_file_load_from_file (keyfile, settings->config_file, G_KEY_FILE_NONE, &error)) {
-		TRACE(TRACE_ERR,"rrror loading config: %sn",error->message);
+	if (smf_settings_group_load("clamav") != 0) {
+		TRACE(TRACE_ERR,"config group clamav does not exist");
 		return -1;
 	}
 
-	clam_settings->host = g_key_file_get_string(keyfile,"clamav","host",NULL);
-	if (clam_settings->host == NULL) 
-		clam_settings->host = g_strdup("127.0.0.1");
-
-	clam_settings->port = g_key_file_get_integer(keyfile,"clamav","port",NULL);
+	clam_settings->host = g_strdup(smf_settings_group_get_string("host"));
+	
+	clam_settings->port = smf_settings_group_get_integer("port");
 	if (!clam_settings->port)
 		clam_settings->port = 3310;
-	
-	clam_settings->max_scan_size = g_key_file_get_integer(keyfile,"clamav","max_scan_size",NULL);
+
+	clam_settings->max_scan_size = smf_settings_group_get_integer("max_scan_size");
 	if (!clam_settings->max_scan_size)
-		clam_settings->max_scan_size = 5242880;
+			clam_settings->max_scan_size = 5242880;
 	
-	clam_settings->notification = g_key_file_get_integer(keyfile,"clamav","notification",NULL);
+	clam_settings->notification = smf_settings_group_get_boolean("notification");
 	if (!clam_settings->notification)
 		clam_settings->notification = 0;
-		
-	clam_settings->notification_template = g_key_file_get_string(keyfile,"clamav","notification_template",NULL);
-	
-	clam_settings->notification_sender = g_key_file_get_string(keyfile,"clamav","notification_sender",NULL);
-	
-	clam_settings->add_header = g_key_file_get_boolean(keyfile,"clamav","add_header",NULL);
+
+	clam_settings->notification_template = smf_settings_group_get_string("notification_template");
+	clam_settings->notification_sender = smf_settings_group_get_string("notification_sender");
+	clam_settings->add_header = smf_settings_group_get_boolean("add_header");
 	if (!clam_settings->add_header)
-		clam_settings->add_header = FALSE;
+		clam_settings->add_header = 0;
 	
-	clam_settings->header_name = g_key_file_get_string(keyfile,"clamav","header_name",NULL);
+	clam_settings->header_name = smf_settings_group_get_string("header_name");
 	if (clam_settings->header_name == NULL)
 		clam_settings->header_name = g_strdup("X-VirusScan");
 	
@@ -85,7 +94,7 @@ int parse_clam_config(SETTINGS *settings) {
 	
 	return 0;
 }
-
+/*
 int get_template(char *template_file, char *sender, char *recipient, char *virus, char **content) {
 	int fh;
 	int count;
@@ -184,7 +193,7 @@ int send_notify(SETTINGS *settings, MAILCONN *mconn, char *virname) {
 
 	return 0;
 }
-
+*/
 int load(MailConn_T *mconn) {
 	int fd_socket, errno, ret, fh;
 	struct sockaddr_in sa;
@@ -193,14 +202,14 @@ int load(MailConn_T *mconn) {
 	char r_buf[BUFSIZE];
 	char *transmit;
 	char *clam_result;
-	Settings *settings = get_settings();
-	clam_settings = g_slice_new(CLAMAV_SETTINGS);
+	Settings_T *settings = smf_settings_get();
+//	clam_settings = g_slice_new(CLAMAV_SETTINGS);
 
 	TRACE(TRACE_DEBUG,"clamav loaded");
-	if (parse_clam_config(settings)!=0) 
+	if (parse_clam_config)!=0) 
 		return -1;
 
-	transmit = (char *)malloc((BUFSIZE + 4) * sizeof(char));
+/*	transmit = (char *)malloc((BUFSIZE + 4) * sizeof(char));
 
 	sa.sin_family = AF_INET;
 	sa.sin_port = htons(clam_settings->port);
@@ -218,9 +227,9 @@ int load(MailConn_T *mconn) {
 		TRACE(TRACE_ERR, "unable to connect to [%s]: %s", clam_settings->host, strerror(errno));
 		return -1;
 	}
-	
+*/
 	/* open queue file */
-	fh = open(mconn->queue_file, O_RDONLY);
+/*	fh = open(mconn->queue_file, O_RDONLY);
 	if(fh < 0) {
 		TRACE(TRACE_ERR, "unable to open queue file [%s]: %s", mconn->queue_file, strerror(errno));
 		close(fd_socket);
@@ -255,9 +264,9 @@ int load(MailConn_T *mconn) {
 	}
 
 	close(fh);
-
+*/
 	/* this is the final chunk, to terminate instream */
-	TRACE(TRACE_DEBUG,"file done, sending 0000 chunk");
+/*	TRACE(TRACE_DEBUG,"file done, sending 0000 chunk");
 	transmit[0] = 0;
 	transmit[1] = 0;
 	transmit[2] = 0;
@@ -269,25 +278,25 @@ int load(MailConn_T *mconn) {
 		close(fd_socket);
 		return -1;
 	}
-	
+*/
 	/* get answer from server, will block until received */
-	ret = recv(fd_socket, r_buf, BUFSIZE, 0);
+/*	ret = recv(fd_socket, r_buf, BUFSIZE, 0);
 	TRACE(TRACE_DEBUG,"got %d bytes back, message was: [%s]", ret, r_buf);
 	close(fd_socket);
 	clam_result = get_substring("^stream: (.*)(?!FOUND\b)\\b\\w+$",r_buf,1);
-	
+*/
 	/* virus detected? */
-	if (!MATCH(clam_result,"")) {
+//	if (!MATCH(clam_result,"")) {
 		/* do we have to send a notification? */
-		if (clam_settings->notification == 1 | clam_settings->notification == 2) {
+/*		if (clam_settings->notification == 1 | clam_settings->notification == 2) {
 			if (send_notify(settings, mconn, clam_result) != 0) 
 				TRACE(TRACE_WARNING,"failed to send notification mail");
 		}
 		TRACE(TRACE_DEBUG,"Virus found: %s", clam_result);
 	}
-	
+*/
 	/* need to add a header? */
-	if (clam_settings->add_header) {
+/*	if (clam_settings->add_header) {
 		if (add_header(mconn->queue_file,clam_settings->header_name,clam_result)!=0) {
 			TRACE(TRACE_ERR, "failed to add header");
 		}
@@ -297,6 +306,6 @@ int load(MailConn_T *mconn) {
 	g_free(transmit);
 	g_free(clam_settings->host); 
 	g_slice_free(CLAMAV_SETTINGS,clam_settings);
-
+*/
 	return 0;
 }
