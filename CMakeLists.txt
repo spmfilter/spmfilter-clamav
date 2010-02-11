@@ -21,7 +21,7 @@ endif(SPMFILTER_FOUND)
 # check for enabled debugging
 if(ENABLE_DEBUG)
     set(CMAKE_VERBOSE_MAKEFILE TRUE)
-    add_definitions(-DDEBUG -g -O0)
+    add_definitions(-DDEBUG -g -O0 -Wall)
 endif(ENABLE_DEBUG)
 
 # check for glib2

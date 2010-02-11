@@ -19,6 +19,7 @@
 #include <stdlib.h>
 #include <fcntl.h>
 #include <errno.h>
+#include <unistd.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
@@ -26,28 +27,9 @@
 
 #include <spmfilter.h>
 
+#include "main.h"
 
 #define THIS_MODULE "clamav"
-
-#define SENDER_TOKEN "%sender%"
-#define RECIPIENT_TOKEN "%recipient%"
-#define VIRUS_TOKEN "%virus%"
-
-
-enum {
-	BUFSIZE = 1024
-};
-
-typedef struct {
-	char *host;
-	int port;
-	int max_scan_size;
-	int add_header;
-	char *header_name;
-	int notification;
-	char *notification_template;
-	char *notification_sender;
-} ClamAVSettings_T;
 
 ClamAVSettings_T *clam_settings;
 
@@ -200,16 +182,14 @@ int load(MailConn_T *mconn) {
 	int bytes = 0;
 	uint32_t conv;
 	char r_buf[BUFSIZE];
-	char *transmit;
-	char *clam_result;
-	Settings_T *settings = smf_settings_get();
-//	clam_settings = g_slice_new(CLAMAV_SETTINGS);
+	char *transmit = NULL;
+	char *clam_result = NULL;
 
 	TRACE(TRACE_DEBUG,"clamav loaded");
-	if (parse_clam_config)!=0) 
+	if (parse_clam_config()!=0)
 		return -1;
 
-/*	transmit = (char *)malloc((BUFSIZE + 4) * sizeof(char));
+	transmit = (char *)malloc((BUFSIZE + 4) * sizeof(char));
 
 	sa.sin_family = AF_INET;
 	sa.sin_port = htons(clam_settings->port);
@@ -227,9 +207,9 @@ int load(MailConn_T *mconn) {
 		TRACE(TRACE_ERR, "unable to connect to [%s]: %s", clam_settings->host, strerror(errno));
 		return -1;
 	}
-*/
+
 	/* open queue file */
-/*	fh = open(mconn->queue_file, O_RDONLY);
+	fh = open(mconn->queue_file, O_RDONLY);
 	if(fh < 0) {
 		TRACE(TRACE_ERR, "unable to open queue file [%s]: %s", mconn->queue_file, strerror(errno));
 		close(fd_socket);
@@ -264,9 +244,9 @@ int load(MailConn_T *mconn) {
 	}
 
 	close(fh);
-*/
+
 	/* this is the final chunk, to terminate instream */
-/*	TRACE(TRACE_DEBUG,"file done, sending 0000 chunk");
+	TRACE(TRACE_DEBUG,"file done, sending 0000 chunk");
 	transmit[0] = 0;
 	transmit[1] = 0;
 	transmit[2] = 0;
@@ -278,13 +258,13 @@ int load(MailConn_T *mconn) {
 		close(fd_socket);
 		return -1;
 	}
-*/
+
 	/* get answer from server, will block until received */
-/*	ret = recv(fd_socket, r_buf, BUFSIZE, 0);
+	ret = recv(fd_socket, r_buf, BUFSIZE, 0);
 	TRACE(TRACE_DEBUG,"got %d bytes back, message was: [%s]", ret, r_buf);
 	close(fd_socket);
-	clam_result = get_substring("^stream: (.*)(?!FOUND\b)\\b\\w+$",r_buf,1);
-*/
+	clam_result = smf_core_get_substring("^stream: (.*)(?!FOUND\b)\\b\\w+$",r_buf,1);
+
 	/* virus detected? */
 //	if (!MATCH(clam_result,"")) {
 		/* do we have to send a notification? */
@@ -301,11 +281,12 @@ int load(MailConn_T *mconn) {
 			TRACE(TRACE_ERR, "failed to add header");
 		}
 	}
-
-	g_free(clam_result);
-	g_free(transmit);
-	g_free(clam_settings->host); 
-	g_slice_free(CLAMAV_SETTINGS,clam_settings);
 */
+	if (clam_result != NULL)
+		free(clam_result);
+	if (transmit != NULL)
+		free(transmit);
+	g_slice_free(ClamAVSettings_T,clam_settings);
+
 	return 0;
 }

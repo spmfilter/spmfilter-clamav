@@ -22,3 +22,12 @@ libtool
 \.chg\..*$
 \.rej$
 \.conflict\~$
+build*
+nbproject/*
+.dep.inc
+CMakeFiles/*
+src/CMakeFiles/*
+CMakeCache*
+*.gz
+cmake_install.cmake
+install_manifest.txt
