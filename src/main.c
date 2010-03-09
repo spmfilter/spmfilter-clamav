@@ -1,5 +1,5 @@
 /* spmfilter-clamav - spmfilter ClamAV Plugin
- * Copyright (C) 2009-2010 Werner Detter and SpaceNet AG
+ * Copyright (C) 2009-2010 Axel Steiner and SpaceNet AG
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -33,15 +33,15 @@
 
 ClamAVSettings_T *clam_settings;
 
-int parse_clam_config(void) {
+int get_clam_config(void) {
 	clam_settings = g_slice_new(ClamAVSettings_T);
 
-	if (smf_settings_group_load("clamav") != 0) {
+	if (smf_settings_group_load(THIS_MODULE) != 0) {
 		TRACE(TRACE_ERR,"config group clamav does not exist");
 		return -1;
 	}
 
-	clam_settings->host = g_strdup(smf_settings_group_get_string("host"));
+	clam_settings->host = smf_settings_group_get_string("host");
 	
 	clam_settings->port = smf_settings_group_get_integer("port");
 	if (!clam_settings->port)
@@ -76,7 +76,7 @@ int parse_clam_config(void) {
 	
 	return 0;
 }
-/*
+
 int get_template(char *template_file, char *sender, char *recipient, char *virus, char **content) {
 	int fh;
 	int count;
@@ -87,7 +87,10 @@ int get_template(char *template_file, char *sender, char *recipient, char *virus
 	int replace_size;
 	int token_size;
 	
-	fh = open(template_file,O_RDONLY);
+	if ((fh = open(template_file,O_RDONLY)) == -1) {
+		TRACE(TRACE_ERR,"failed to open virus notification template");
+		return -1;
+	}
 	
 	template = malloc(sizeof(char));
 	while((count = read(fh,buffer,512))) {
@@ -100,15 +103,7 @@ int get_template(char *template_file, char *sender, char *recipient, char *virus
 
 	while(*template != '\0') {
 		if(*template == '%') {
-			if (strncmp(template,SENDER_TOKEN,strlen(SENDER_TOKEN)) == 0) {
-				replace = sender;
-				replace_size = strlen(sender);
-				token_size = strlen(SENDER_TOKEN);
-			}	else if (strncmp(template,RECIPIENT_TOKEN,strlen(RECIPIENT_TOKEN)) == 0) {
-				replace = recipient;
-				replace_size = strlen(recipient);
-				token_size = strlen(RECIPIENT_TOKEN);
-			} else if (strncmp(template,VIRUS_TOKEN,strlen(VIRUS_TOKEN)) == 0) {
+			if (strncmp(template,VIRUS_TOKEN,strlen(VIRUS_TOKEN)) == 0) {
 				replace = virus;
 				replace_size = strlen(virus);
 				token_size = strlen(VIRUS_TOKEN);
@@ -125,58 +120,91 @@ int get_template(char *template_file, char *sender, char *recipient, char *virus
 		} 
 		(*content)[pos++] = *template++;
 	}
-	TRACE(TRACE_DEBUG,"CONTENT: %s",*content);
+//	TRACE(TRACE_DEBUG,"CONTENT: %s",*content);
 	return 0;
 }
 
 int generate_message(char *content, char *recipient, char *nexthop) {
-	GIOChannel *fh;
-	GError *error = NULL;
-	MESSAGE *msg = NULL;
+//	GIOChannel *fh;
+//	GError *error = NULL;
+	SMFDeliverInfo_T *info;
+	SMFMessage_T *message;
+	SMFMimePart_T *mime_part;
+	SMFDataWrapper_T *wrapper;
 
-	msg = g_slice_new(MESSAGE);
-	msg->rcpts = malloc(sizeof(char));
-	msg->rcpts[0] = g_strdup(recipient);
-	msg->num_rcpts = 1;
-	msg->from = g_strdup(clam_settings->notification_sender);
-	msg->message_file = g_strdup(gen_queue_file());
-	msg->nexthop = g_strdup(nexthop);
+	info = g_slice_new(SMFDeliverInfo_T);
+	info->num_rcpts = 1;
+	info->rcpts = g_malloc(sizeof(info->rcpts[info->num_rcpts]));
+	info->rcpts[0] = g_strdup(recipient);
+	info->from = g_strdup(clam_settings->notification_sender);
+	smf_core_gen_queue_file(&info->message_file);
+	info->nexthop = g_strdup(nexthop);
 
+	message = smf_message_new();
+	smf_message_set_sender(message,clam_settings->notification_sender);
+	smf_message_add_recipient(message,SMF_RECIPIENT_TYPE_TO,NULL,recipient);
+	smf_message_set_subject(message,"Virus notification");
+
+	mime_part = smf_mime_part_new(NULL,NULL);
+	smf_mime_part_set_encoding(mime_part, SMF_CONTENT_ENCODING_DEFAULT);
+	smf_mime_part_set_disposition(mime_part,SMF_DISPOSITION_INLINE);
+
+	wrapper = smf_mime_data_wrapper_new(content,SMF_CONTENT_ENCODING_DEFAULT);
+	smf_mime_set_content(mime_part,wrapper);
+
+	smf_message_set_mime_part(message,mime_part);
+	
+	info->message = message;
+/*
 	fh = g_io_channel_new_file(msg->message_file,"w",NULL);
-	if (g_io_channel_write_chars(fh,content,-1,NULL,&error) != G_IO_STATUS_NORMAL) 
+	if (g_io_channel_write_chars(fh,smf_message_to_string(message),-1,NULL,&error) != G_IO_STATUS_NORMAL)
 		TRACE(TRACE_ERR,"writing virus notification failed: %s", error->message);
 
 	g_io_channel_flush(fh,NULL);
 	g_io_channel_shutdown(fh,TRUE,NULL);
 	g_io_channel_unref(fh);
+*/
+	smf_message_deliver(info);
 	
-	smtp_delivery(msg);
-	
-	g_slice_free(MESSAGE,msg);
+	g_slice_free(SMFDeliverInfo_T,info);
+
+	return 0;
 }
 
-int send_notify(SETTINGS *settings, MAILCONN *mconn, char *virname) {
-	GIOChannel *fh;
-	char *buffer;
+int send_notify(SMFSession_T *session, char *virname) {
+//	GIOChannel *fh;
+	SMFSettings_T *settings = smf_settings_get();
+//	char *buffer;
 	
-	char *addr;
+//	char *addr;
 	int i;
 	
-	for (i=0; i < mconn->num_rcpts; i++) {
-		char *mail_content;
-		get_template(clam_settings->notification_template,
-			clam_settings->notification_sender,
-			mconn->rcpts[i]->addr,
-			virname,
-			&mail_content);
-		generate_message(mail_content,mconn->rcpts[i]->addr,settings->nexthop);
-		free(mail_content);
+	for (i=0; i < session->envelope_to_num; i++) {
+		char *mail_content = NULL;
+		/* send notify to local user only */
+		if ((clam_settings->notification == 1) &&
+				(session->envelope_to[i]->is_local ==1)) {
+
+		/*	get_template(clam_settings->notification_template,
+				clam_settings->notification_sender,
+				session->envelope_to[i]->addr,
+				virname,
+				&mail_content);
+		*/
+			generate_message(mail_content,session->envelope_to[i]->addr,settings->nexthop);
+
+		}
+		
+		if (mail_content != NULL)
+			free(mail_content);
 	}
 
 	return 0;
 }
-*/
-int load(MailConn_T *mconn) {
+
+
+
+int load(SMFSession_T *session) {
 	int fd_socket, errno, ret, fh;
 	struct sockaddr_in sa;
 	int bytes = 0;
@@ -186,7 +214,7 @@ int load(MailConn_T *mconn) {
 	char *clam_result = NULL;
 
 	TRACE(TRACE_DEBUG,"clamav loaded");
-	if (parse_clam_config()!=0)
+	if (get_clam_config()!=0)
 		return -1;
 
 	transmit = (char *)malloc((BUFSIZE + 4) * sizeof(char));
@@ -209,9 +237,9 @@ int load(MailConn_T *mconn) {
 	}
 
 	/* open queue file */
-	fh = open(mconn->queue_file, O_RDONLY);
+	fh = open(session->queue_file, O_RDONLY);
 	if(fh < 0) {
-		TRACE(TRACE_ERR, "unable to open queue file [%s]: %s", mconn->queue_file, strerror(errno));
+		TRACE(TRACE_ERR, "unable to open queue file [%s]: %s", session->queue_file, strerror(errno));
 		close(fd_socket);
 		return -1;
 	}
@@ -266,22 +294,21 @@ int load(MailConn_T *mconn) {
 	clam_result = smf_core_get_substring("^stream: (.*)(?!FOUND\b)\\b\\w+$",r_buf,1);
 
 	/* virus detected? */
-//	if (!MATCH(clam_result,"")) {
-		/* do we have to send a notification? */
-/*		if (clam_settings->notification == 1 | clam_settings->notification == 2) {
-			if (send_notify(settings, mconn, clam_result) != 0) 
-				TRACE(TRACE_WARNING,"failed to send notification mail");
-		}
+	if (strcmp(clam_result,"") != 0) {
 		TRACE(TRACE_DEBUG,"Virus found: %s", clam_result);
+		/* do we have to send a notification? */
+		if ((clam_settings->notification == 1) || (clam_settings->notification == 2)) {
+			if (send_notify(session, clam_result) != 0)
+				TRACE(TRACE_WARNING,"failed to send notification mail");
+		} 
+	} else {
+		clam_result = g_strdup("Ok");
 	}
-*/
+
 	/* need to add a header? */
-/*	if (clam_settings->add_header) {
-		if (add_header(mconn->queue_file,clam_settings->header_name,clam_result)!=0) {
-			TRACE(TRACE_ERR, "failed to add header");
-		}
-	}
-*/
+	if (clam_settings->add_header)
+		smf_session_header_append(clam_settings->header_name,clam_result);
+
 	if (clam_result != NULL)
 		free(clam_result);
 	if (transmit != NULL)

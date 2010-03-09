@@ -18,8 +18,6 @@
 #ifndef _MAIN_H
 #define	_MAIN_H
 
-#define SENDER_TOKEN "%sender%"
-#define RECIPIENT_TOKEN "%recipient%"
 #define VIRUS_TOKEN "%virus%"
 
 
