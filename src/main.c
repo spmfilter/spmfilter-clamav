@@ -15,6 +15,7 @@
  * License along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 #include <fcntl.h>
@@ -77,68 +78,59 @@ int get_clam_config(void) {
 	return 0;
 }
 
-int get_template(char *template_file, char *sender, char *recipient, char *virus, char **content) {
-	int fh;
-	int count;
-	char buffer[512];
-	int pos = 0;
-	char *replace;
+char *get_template(char *template_file, char *virus) {
+	FILE *fp;
+	int i, count =0;
 	char *template;
-	int replace_size;
-	int token_size;
-	
-	if ((fh = open(template_file,O_RDONLY)) == -1) {
-		TRACE(TRACE_ERR,"failed to open virus notification template");
-		return -1;
-	}
-	
-	template = malloc(sizeof(char));
-	while((count = read(fh,buffer,512))) {
-		template = realloc(template,strlen(template) + count + 1);
-		strncat(template,buffer,count);
-	}
-	close(fh);
+	int newlen = strlen(virus);
+	int oldlen = strlen(VIRUS_TOKEN);
+	long len;
 
-	*content = malloc(strlen(template) + 1);
-
-	while(*template != '\0') {
-		if(*template == '%') {
-			if (strncmp(template,VIRUS_TOKEN,strlen(VIRUS_TOKEN)) == 0) {
-				replace = virus;
-				replace_size = strlen(virus);
-				token_size = strlen(VIRUS_TOKEN);
-			} else {
-				replace = NULL;
-			}
-			
-			if (replace != NULL) {
-				*content = realloc(*content,strlen(*content) + replace_size);
-				memcpy((*content + pos), replace, replace_size);
-				pos += replace_size;
-				template = template + token_size;
-			}
-		} 
-		(*content)[pos++] = *template++;
+	if ((fp = fopen(template_file,"r")) == NULL) {
+		TRACE(TRACE_ERR,"failed to open virus notify template");
+		return NULL;
 	}
-//	TRACE(TRACE_DEBUG,"CONTENT: %s",*content);
-	return 0;
+
+	fseek(fp,0,SEEK_END);
+	len = ftell(fp);
+	fseek(fp,0,SEEK_SET); 
+	template = (char *)malloc(len);
+	fread(template,len,1,fp);
+	fclose(fp);
+
+	for (i = 0; template[i]; ++i) {
+		if (strstr(&template[i], VIRUS_TOKEN) == &template[i])
+			++count, i += oldlen - 1;
+  	}
+
+	char *content = (char *) calloc(i + 1 + count * (newlen - oldlen), sizeof(char));
+	if (!content) return NULL;
+
+	i = 0;
+	while (*template) {
+		if (strstr(template, VIRUS_TOKEN) == template) {
+			strcpy(&content[i], virus),
+				i += newlen,template += oldlen;
+		} else
+			content[i++] = *template++;
+  	}
+
+	content[i] = '\0';
+
+	return content;
 }
 
 int generate_message(char *content, char *recipient, char *nexthop) {
-//	GIOChannel *fh;
-//	GError *error = NULL;
-	SMFDeliverInfo_T *info;
+	SMFMessageEnvelope_T *envelope;
 	SMFMessage_T *message;
 	SMFMimePart_T *mime_part;
 	SMFDataWrapper_T *wrapper;
 
-	info = g_slice_new(SMFDeliverInfo_T);
-	info->num_rcpts = 1;
-	info->rcpts = g_malloc(sizeof(info->rcpts[info->num_rcpts]));
-	info->rcpts[0] = g_strdup(recipient);
-	info->from = g_strdup(clam_settings->notification_sender);
-	smf_core_gen_queue_file(&info->message_file);
-	info->nexthop = g_strdup(nexthop);
+
+	envelope = smf_message_envelope_new();
+	envelope = smf_message_envelope_add_rcpt(envelope,recipient);
+	envelope->from = g_strdup(clam_settings->notification_sender);
+	envelope->nexthop = g_strdup(nexthop);
 
 	message = smf_message_new();
 	smf_message_set_sender(message,clam_settings->notification_sender);
@@ -146,37 +138,30 @@ int generate_message(char *content, char *recipient, char *nexthop) {
 	smf_message_set_subject(message,"Virus notification");
 
 	mime_part = smf_mime_part_new(NULL,NULL);
-	smf_mime_part_set_encoding(mime_part, SMF_CONTENT_ENCODING_DEFAULT);
 	smf_mime_part_set_disposition(mime_part,SMF_DISPOSITION_INLINE);
+	smf_mime_part_set_encoding(mime_part, SMF_CONTENT_ENCODING_DEFAULT);
 
 	wrapper = smf_mime_data_wrapper_new(content,SMF_CONTENT_ENCODING_DEFAULT);
 	smf_mime_set_content(mime_part,wrapper);
 
 	smf_message_set_mime_part(message,mime_part);
 	
-	info->message = message;
-/*
-	fh = g_io_channel_new_file(msg->message_file,"w",NULL);
-	if (g_io_channel_write_chars(fh,smf_message_to_string(message),-1,NULL,&error) != G_IO_STATUS_NORMAL)
-		TRACE(TRACE_ERR,"writing virus notification failed: %s", error->message);
+	envelope->message = message;
 
-	g_io_channel_flush(fh,NULL);
-	g_io_channel_shutdown(fh,TRUE,NULL);
-	g_io_channel_unref(fh);
-*/
-	smf_message_deliver(info);
+	int fh;
+	fh = open("/tmp/test.eml",O_CREAT|O_TRUNC|O_RDWR);
+	write(fh,smf_message_to_string(message),strlen(smf_message_to_string(message)));
+	close(fh);
+
+	smf_message_deliver(envelope);
 	
-	g_slice_free(SMFDeliverInfo_T,info);
+	smf_message_envelope_unref(envelope);
 
 	return 0;
 }
 
 int send_notify(SMFSession_T *session, char *virname) {
-//	GIOChannel *fh;
 	SMFSettings_T *settings = smf_settings_get();
-//	char *buffer;
-	
-//	char *addr;
 	int i;
 	
 	for (i=0; i < session->envelope_to_num; i++) {
@@ -185,14 +170,8 @@ int send_notify(SMFSession_T *session, char *virname) {
 		if ((clam_settings->notification == 1) &&
 				(session->envelope_to[i]->is_local ==1)) {
 
-		/*	get_template(clam_settings->notification_template,
-				clam_settings->notification_sender,
-				session->envelope_to[i]->addr,
-				virname,
-				&mail_content);
-		*/
+			mail_content = get_template(clam_settings->notification_template,virname);
 			generate_message(mail_content,session->envelope_to[i]->addr,settings->nexthop);
-
 		}
 		
 		if (mail_content != NULL)
@@ -201,8 +180,6 @@ int send_notify(SMFSession_T *session, char *virname) {
 
 	return 0;
 }
-
-
 
 int load(SMFSession_T *session) {
 	int fd_socket, errno, ret, fh;
@@ -309,11 +286,16 @@ int load(SMFSession_T *session) {
 	if (clam_settings->add_header)
 		smf_session_header_append(clam_settings->header_name,clam_result);
 
-	if (clam_result != NULL)
-		free(clam_result);
 	if (transmit != NULL)
 		free(transmit);
 	g_slice_free(ClamAVSettings_T,clam_settings);
 
-	return 0;
+
+	if (strcmp(clam_result,"Ok") == 0) {
+		free(clam_result);
+		return 0;
+	} else {
+		free(clam_result);
+		return 1;
+	}
 }
