@@ -52,7 +52,7 @@ int get_clam_config(void) {
 	if (!clam_settings->max_scan_size)
 			clam_settings->max_scan_size = 5242880;
 	
-	clam_settings->notification = smf_settings_group_get_boolean("notification");
+	clam_settings->notification = smf_settings_group_get_integer("notification");
 	if (!clam_settings->notification)
 		clam_settings->notification = 0;
 
@@ -148,13 +148,7 @@ int generate_message(char *content, char *recipient, char *nexthop) {
 	
 	envelope->message = message;
 
-	int fh;
-	fh = open("/tmp/test.eml",O_CREAT|O_TRUNC|O_RDWR);
-	write(fh,smf_message_to_string(message),strlen(smf_message_to_string(message)));
-	close(fh);
-
 	smf_message_deliver(envelope);
-	
 	smf_message_envelope_unref(envelope);
 
 	return 0;
@@ -163,21 +157,20 @@ int generate_message(char *content, char *recipient, char *nexthop) {
 int send_notify(SMFSession_T *session, char *virname) {
 	SMFSettings_T *settings = smf_settings_get();
 	int i;
-	
-	for (i=0; i < session->envelope_to_num; i++) {
-		char *mail_content = NULL;
-		/* send notify to local user only */
-		if ((clam_settings->notification == 1) &&
-				(session->envelope_to[i]->is_local ==1)) {
+	char *mail_content = NULL;
+	mail_content = get_template(clam_settings->notification_template,virname);
 
-			mail_content = get_template(clam_settings->notification_template,virname);
+	for (i=0; i < session->envelope_to_num; i++) {
+		if (clam_settings->notification <= 2) 
 			generate_message(mail_content,session->envelope_to[i]->addr,settings->nexthop);
-		}
-		
-		if (mail_content != NULL)
-			free(mail_content);
 	}
 
+	if (clam_settings->notification == 2) 
+		generate_message(mail_content,session->envelope_from->addr,settings->nexthop);
+
+	if (mail_content != NULL)
+		free(mail_content);
+	
 	return 0;
 }
 
@@ -268,16 +261,18 @@ int load(SMFSession_T *session) {
 	ret = recv(fd_socket, r_buf, BUFSIZE, 0);
 	TRACE(TRACE_DEBUG,"got %d bytes back, message was: [%s]", ret, r_buf);
 	close(fd_socket);
-	clam_result = smf_core_get_substring("^stream: (.*)(?!FOUND\b)\\b\\w+$",r_buf,1);
+	clam_result = smf_core_get_substring("^stream: (.*)(?!FOUND)\\b\\W+",r_buf,1);
 
 	/* virus detected? */
 	if (strcmp(clam_result,"") != 0) {
 		TRACE(TRACE_DEBUG,"Virus found: %s", clam_result);
 		/* do we have to send a notification? */
-		if ((clam_settings->notification == 1) || (clam_settings->notification == 2)) {
+		if (clam_settings->notification != 0) {
 			if (send_notify(session, clam_result) != 0)
 				TRACE(TRACE_WARNING,"failed to send notification mail");
-		} 
+		} else {
+			TRACE(TRACE_INFO,"message dropped, virus [%s] detected",clam_result);
+		}
 	} else {
 		clam_result = g_strdup("Ok");
 	}
