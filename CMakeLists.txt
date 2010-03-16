@@ -31,4 +31,14 @@ if(GLIB2_FOUND)
     link_directories(${GLIB2_LIBRARY_DIRS})
 endif(GLIB2_FOUND)
 
+# check out current version
+file(READ ${CMAKE_CURRENT_SOURCE_DIR}/VERSION PLUGIN_VERSION)
+
 add_subdirectory(src)
+
+# * * * custom targets * * *
+set(PLUGIN_ARCHIVE_NAME "${CMAKE_PROJECT_NAME}-${PLUGIN_VERSION}")
+
+add_custom_target(dist
+    COMMAND hg archive --prefix="${PLUGIN_ARCHIVE_NAME}" -t tgz "${PLUGIN_ARCHIVE_NAME}.tar.gz"
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
