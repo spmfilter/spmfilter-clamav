@@ -12,7 +12,7 @@ endif(PREFIX)
 
 include(FindPkgConfig)
 
-pkg_search_module(SPMFILTER REQUIRED spmfilter)
+pkg_search_module(SPMFILTER REQUIRED spmfilter >= 0.3)
 if(SPMFILTER_FOUND)
     include_directories(${SPMFILTER_INCLUDE_DIRS})
     link_directories(${SPMFILTER_LIBRARY_DIRS})
