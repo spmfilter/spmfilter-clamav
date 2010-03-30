@@ -65,13 +65,18 @@ int get_clam_config(void) {
 	clam_settings->header_name = smf_settings_group_get_string("header_name");
 	if (clam_settings->header_name == NULL)
 		clam_settings->header_name = g_strdup("X-VirusScanned");
-	
+
+	clam_settings->notification_subject = smf_settings_group_get_string("notification_subject");
+	if (clam_settings->notification_subject == NULL)
+		clam_settings->notification_subject = g_strdup("Virus notification");
+
 	TRACE(TRACE_DEBUG,"clam_settings->host: %s",clam_settings->host);
 	TRACE(TRACE_DEBUG,"clam_settings->port: %d",clam_settings->port);
 	TRACE(TRACE_DEBUG,"clam_settings->max_scan_size: %d",clam_settings->max_scan_size);
 	TRACE(TRACE_DEBUG,"clam_settings->notification: %d",clam_settings->notification);
 	TRACE(TRACE_DEBUG,"clam_settings->notification_template: %s",clam_settings->notification_template);
 	TRACE(TRACE_DEBUG,"clam_settings->notification_sender: %s",clam_settings->notification_sender);
+	TRACE(TRACE_DEBUG,"clam_settings->notification_subject: %s",clam_settings->notification_subject);
 	TRACE(TRACE_DEBUG,"clam_settings->add_header: %d",clam_settings->add_header);
 	TRACE(TRACE_DEBUG,"clam_settings->header_name: %s",clam_settings->header_name);
 	
@@ -135,7 +140,7 @@ int generate_message(char *content, char *recipient, char *nexthop) {
 	message = smf_message_new();
 	smf_message_set_sender(message,clam_settings->notification_sender);
 	smf_message_add_recipient(message,SMF_RECIPIENT_TYPE_TO,NULL,recipient);
-	smf_message_set_subject(message,"Virus notification");
+	smf_message_set_subject(message,clam_settings->notification_subject);
 
 	mime_part = smf_mime_part_new(NULL,NULL);
 	smf_mime_part_set_disposition(mime_part,SMF_DISPOSITION_INLINE);
@@ -261,7 +266,7 @@ int load(SMFSession_T *session) {
 	ret = recv(fd_socket, r_buf, BUFSIZE, 0);
 	TRACE(TRACE_DEBUG,"got %d bytes back, message was: [%s]", ret, r_buf);
 	close(fd_socket);
-	clam_result = smf_core_get_substring("^stream: (.*)(?!FOUND)\\b\\W+",r_buf,1);
+	clam_result = smf_core_get_substring("^stream: (.*)(?!FOUND\b)\\b\\w+$",r_buf,1);
 
 	/* virus detected? */
 	if (strcmp(clam_result,"") != 0) {
