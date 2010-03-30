@@ -64,7 +64,7 @@ int get_clam_config(void) {
 	
 	clam_settings->header_name = smf_settings_group_get_string("header_name");
 	if (clam_settings->header_name == NULL)
-		clam_settings->header_name = g_strdup("X-VirusScanned");
+		clam_settings->header_name = g_strdup("X-Spmfilter-Virus-Scanned");
 
 	clam_settings->notification_subject = smf_settings_group_get_string("notification_subject");
 	if (clam_settings->notification_subject == NULL)
@@ -299,7 +299,7 @@ int load(SMFSession_T *session) {
 			TRACE(TRACE_INFO,"message dropped, virus [%s] detected",clam_result);
 		}
 	} else {
-		clam_result = g_strdup("Ok");
+		clam_result = g_strdup("passed");
 	}
 
 	/* need to add a header? */
@@ -311,7 +311,7 @@ int load(SMFSession_T *session) {
 	g_slice_free(ClamAVSettings_T,clam_settings);
 
 
-	if (strcmp(clam_result,"Ok") == 0) {
+	if (strcmp(clam_result,"passed") == 0) {
 		free(clam_result);
 		return 0;
 	} else {
