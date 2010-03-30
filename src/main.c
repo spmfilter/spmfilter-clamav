@@ -172,19 +172,24 @@ int send_notify(SMFSession_T *session, char *virname) {
 		if (clam_settings->notification <= 2) {
 			if (session->envelope_to != NULL) {
 				for (i=0; i < session->envelope_to_num; i++) {
+					TRACE(TRACE_DEBUG,"sending notification to [%s]",session->envelope_to[i]->addr);
 					generate_message(mail_content,session->envelope_to[i]->addr,settings->nexthop);
 				}
 			} else if (session->message_to != NULL) {
 				for (i=0; i < session->message_to_num; i++) {
+					TRACE(TRACE_DEBUG,"sending notification to [%s]",session->message_to[i]->addr);
 					generate_message(mail_content,session->message_to[i]->addr,settings->nexthop);
 				}
 			}
 		}
 		if (clam_settings->notification == 2) {
-			if (session->envelope_from != NULL)
+			if (session->envelope_from != NULL) {
+				TRACE(TRACE_DEBUG,"sending notification to [%s]",session->envelope_from->addr);
 				generate_message(mail_content,session->envelope_from->addr,settings->nexthop);
-			else if (session->message_from != NULL)
+			} else if (session->message_from != NULL) {
+				TRACE(TRACE_DEBUG,"sending notification to [%s]",session->message_from->addr);
 				generate_message(mail_content,session->message_from->addr,settings->nexthop);
+			}
 		}
 	}
 			
