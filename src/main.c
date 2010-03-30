@@ -88,12 +88,15 @@ int get_clam_config(void) {
 	return 0;
 }
 
-char *get_template(char *template_file, char *virus) {
+char *get_template(char *template_file, char *virus, char *virus_sender) {
 	FILE *fp;
 	int i, count =0;
 	char *template;
-	int newlen = strlen(virus);
-	int oldlen = strlen(VIRUS_TOKEN);
+	int vt_newlen = strlen(virus);
+	int st_newlen = strlen(virus_sender);
+	int vt_oldlen = strlen(VIRUS_TOKEN);
+	int st_oldlen = strlen(SENDER_TOKEN);
+	int newlen;
 	long len;
 
 	if ((fp = fopen(template_file,"r")) == NULL) {
@@ -110,18 +113,24 @@ char *get_template(char *template_file, char *virus) {
 
 	for (i = 0; template[i]; ++i) {
 		if (strstr(&template[i], VIRUS_TOKEN) == &template[i])
-			++count, i += oldlen - 1;
+			++count, i += vt_oldlen - 1;
+		else if (strstr(&template[i], SENDER_TOKEN) == &template[i])
+			++count, i += st_oldlen - 1;
   	}
 
-	char *content = (char *) calloc(i + 1 + count * (newlen - oldlen), sizeof(char));
+	newlen = (vt_newlen - vt_oldlen) + (st_newlen - vt_oldlen);
+	char *content = (char *) calloc(i + 1 + count * newlen, sizeof(char));
 	if (!content) return NULL;
 
 	i = 0;
 	while (*template) {
 		if (strstr(template, VIRUS_TOKEN) == template) {
 			strcpy(&content[i], virus),
-				i += newlen,template += oldlen;
-		} else
+					i += vt_newlen,template += vt_oldlen;
+		} else if (strstr(template, SENDER_TOKEN) == template) {
+			strcpy(&content[i],virus_sender),
+					i += st_newlen,template += st_oldlen;
+		}else
 			content[i++] = *template++;
   	}
 
@@ -168,39 +177,54 @@ int send_notify(SMFSession_T *session, char *virname) {
 	SMFSettings_T *settings = smf_settings_get();
 	int i;
 	char *mail_content = NULL;
-	
+
 	if (clam_settings->notification == 0) {
 		return 0;
 	} else {
-		mail_content = get_template(clam_settings->notification_template,virname);
 
+		if (session->envelope_from->addr != NULL)
+			mail_content = get_template(clam_settings->notification_template,
+							virname,session->envelope_from->addr);
+		else if (session->message_from->addr != NULL)
+			mail_content = get_template(clam_settings->notification_template,
+							virname,session->message_from->addr);
+
+		TRACE(TRACE_DEBUG,"T: %s",mail_content);
 		if (clam_settings->notification <= 2) {
 			if (session->envelope_to != NULL) {
 				for (i=0; i < session->envelope_to_num; i++) {
+					TRACE(TRACE_DEBUG,"I: %d",i);
 					TRACE(TRACE_DEBUG,"sending notification to [%s]",session->envelope_to[i]->addr);
-					generate_message(mail_content,session->envelope_to[i]->addr,settings->nexthop);
+					generate_message(mail_content,
+							session->envelope_to[i]->addr,
+							settings->nexthop);
 				}
 			} else if (session->message_to != NULL) {
 				for (i=0; i < session->message_to_num; i++) {
 					TRACE(TRACE_DEBUG,"sending notification to [%s]",session->message_to[i]->addr);
-					generate_message(mail_content,session->message_to[i]->addr,settings->nexthop);
+					generate_message(mail_content,
+							session->message_to[i]->addr,
+							settings->nexthop);
 				}
 			}
 		}
 		if (clam_settings->notification == 2) {
 			if (session->envelope_from != NULL) {
 				TRACE(TRACE_DEBUG,"sending notification to [%s]",session->envelope_from->addr);
-				generate_message(mail_content,session->envelope_from->addr,settings->nexthop);
+				generate_message(mail_content,
+						session->envelope_from->addr,
+						settings->nexthop);
 			} else if (session->message_from != NULL) {
 				TRACE(TRACE_DEBUG,"sending notification to [%s]",session->message_from->addr);
-				generate_message(mail_content,session->message_from->addr,settings->nexthop);
+				generate_message(mail_content,
+						session->message_from->addr,
+						settings->nexthop);
 			}
 		}
 	}
-			
+
 	if (mail_content != NULL)
 		free(mail_content);
-	
 	return 0;
 }
 

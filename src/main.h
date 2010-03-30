@@ -19,6 +19,7 @@
 #define	_MAIN_H
 
 #define VIRUS_TOKEN "%virus%"
+#define SENDER_TOKEN "%sender%"
 
 
 enum {
