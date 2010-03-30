@@ -293,6 +293,7 @@ int load(SMFSession_T *session) {
 		TRACE(TRACE_DEBUG,"Virus found: %s", clam_result);
 		/* do we have to send a notification? */
 		if (clam_settings->notification != 0) {
+			TRACE(TRACE_INFO,"message dropped, virus [%s] detected",clam_result);
 			if (send_notify(session, clam_result) != 0)
 				TRACE(TRACE_WARNING,"failed to send notification mail");
 		} else {
