@@ -64,7 +64,7 @@ int get_clam_config(void) {
 	
 	clam_settings->header_name = smf_settings_group_get_string("header_name");
 	if (clam_settings->header_name == NULL)
-		clam_settings->header_name = g_strdup("X-VirusScan");
+		clam_settings->header_name = g_strdup("X-VirusScanned");
 	
 	TRACE(TRACE_DEBUG,"clam_settings->host: %s",clam_settings->host);
 	TRACE(TRACE_DEBUG,"clam_settings->port: %d",clam_settings->port);
