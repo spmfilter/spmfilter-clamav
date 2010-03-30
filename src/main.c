@@ -70,6 +70,10 @@ int get_clam_config(void) {
 	if (clam_settings->notification_subject == NULL)
 		clam_settings->notification_subject = g_strdup("Virus notification");
 
+	clam_settings->scan_direction = smf_settings_group_get_integer("scan_direction");
+	if (!clam_settings->scan_direction)
+		clam_settings->scan_direction = 0;
+
 	TRACE(TRACE_DEBUG,"clam_settings->host: %s",clam_settings->host);
 	TRACE(TRACE_DEBUG,"clam_settings->port: %d",clam_settings->port);
 	TRACE(TRACE_DEBUG,"clam_settings->max_scan_size: %d",clam_settings->max_scan_size);
@@ -79,7 +83,8 @@ int get_clam_config(void) {
 	TRACE(TRACE_DEBUG,"clam_settings->notification_subject: %s",clam_settings->notification_subject);
 	TRACE(TRACE_DEBUG,"clam_settings->add_header: %d",clam_settings->add_header);
 	TRACE(TRACE_DEBUG,"clam_settings->header_name: %s",clam_settings->header_name);
-	
+	TRACE(TRACE_DEBUG,"clam_settings->scan_direction: %d",clam_settings->scan_direction);
+
 	return 0;
 }
 
@@ -211,6 +216,34 @@ int load(SMFSession_T *session) {
 	TRACE(TRACE_DEBUG,"clamav loaded");
 	if (get_clam_config()!=0)
 		return -1;
+
+
+	if (session->envelope_from != NULL) {
+		if ((session->envelope_from->is_local == 1) &&
+				(clam_settings->scan_direction == 1)) {
+			TRACE(TRACE_DEBUG,"skipping virus check; scanning only incoming connections");
+			g_slice_free(ClamAVSettings_T,clam_settings);
+			return 0;
+		} else if ((session->envelope_from->is_local == 0) &&
+				(clam_settings->scan_direction == 2)) {
+			TRACE(TRACE_DEBUG,"skipping virus check; scanning only outgoing connections");
+			g_slice_free(ClamAVSettings_T,clam_settings);
+			return 0;
+		}
+
+	} else if (session->message_from != NULL) {
+		if ((session->message_from->is_local == 1) &&
+				(clam_settings->scan_direction == 1)) {
+			TRACE(TRACE_DEBUG,"skipping virus check; scanning only incoming connections");
+			g_slice_free(ClamAVSettings_T,clam_settings);
+			return 0;
+		} else if ((session->message_from->is_local == 0) &&
+				(clam_settings->scan_direction == 2)) {
+			TRACE(TRACE_DEBUG,"skipping virus check; scanning only outgoing connections");
+			g_slice_free(ClamAVSettings_T,clam_settings);
+			return 0;
+		}
+	}
 
 	transmit = (char *)malloc((BUFSIZE + 4) * sizeof(char));
 
