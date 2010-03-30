@@ -163,16 +163,31 @@ int send_notify(SMFSession_T *session, char *virname) {
 	SMFSettings_T *settings = smf_settings_get();
 	int i;
 	char *mail_content = NULL;
-	mail_content = get_template(clam_settings->notification_template,virname);
+	
+	if (clam_settings->notification == 0) {
+		return 0;
+	} else {
+		mail_content = get_template(clam_settings->notification_template,virname);
 
-	for (i=0; i < session->envelope_to_num; i++) {
-		if (clam_settings->notification <= 2) 
-			generate_message(mail_content,session->envelope_to[i]->addr,settings->nexthop);
+		if (clam_settings->notification <= 2) {
+			if (session->envelope_to != NULL) {
+				for (i=0; i < session->envelope_to_num; i++) {
+					generate_message(mail_content,session->envelope_to[i]->addr,settings->nexthop);
+				}
+			} else if (session->message_to != NULL) {
+				for (i=0; i < session->message_to_num; i++) {
+					generate_message(mail_content,session->message_to[i]->addr,settings->nexthop);
+				}
+			}
+		}
+		if (clam_settings->notification == 2) {
+			if (session->envelope_from != NULL)
+				generate_message(mail_content,session->envelope_from->addr,settings->nexthop);
+			else if (session->message_from != NULL)
+				generate_message(mail_content,session->message_from->addr,settings->nexthop);
+		}
 	}
-
-	if (clam_settings->notification == 2) 
-		generate_message(mail_content,session->envelope_from->addr,settings->nexthop);
-
+			
 	if (mail_content != NULL)
 		free(mail_content);
 	
