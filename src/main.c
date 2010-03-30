@@ -182,18 +182,16 @@ int send_notify(SMFSession_T *session, char *virname) {
 		return 0;
 	} else {
 
-		if (session->envelope_from->addr != NULL)
+		if (session->envelope_from != NULL)
 			mail_content = get_template(clam_settings->notification_template,
 							virname,session->envelope_from->addr);
-		else if (session->message_from->addr != NULL)
+		else if (session->message_from != NULL)
 			mail_content = get_template(clam_settings->notification_template,
 							virname,session->message_from->addr);
 
-		TRACE(TRACE_DEBUG,"T: %s",mail_content);
 		if (clam_settings->notification <= 2) {
 			if (session->envelope_to != NULL) {
 				for (i=0; i < session->envelope_to_num; i++) {
-					TRACE(TRACE_DEBUG,"I: %d",i);
 					TRACE(TRACE_DEBUG,"sending notification to [%s]",session->envelope_to[i]->addr);
 					generate_message(mail_content,
 							session->envelope_to[i]->addr,
