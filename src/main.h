@@ -35,6 +35,7 @@ typedef struct {
 	char *notification_template;
 	char *notification_sender;
 	char *notification_subject;
+	int scan_direction;
 } ClamAVSettings_T;
 
 #endif	/* _MAIN_H */
