@@ -10,10 +10,6 @@ if(PREFIX)
     SET(CMAKE_INSTALL_PREFIX ${PREFIX})
 endif(PREFIX)
 
-# internal project settings
-#set(SMF_LIB_DIR "${CMAKE_INSTALL_PREFIX}/lib/spmfilter")
-#message(STATUS "using smf library dir ${SMF_LIB_DIR}")
-
 # NO NEED TO CHANGE ANYTHING BELOW
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/Modules/")
 
@@ -42,3 +38,25 @@ endif(GLIB2_FOUND)
 
 add_subdirectory(src)
 add_subdirectory(man)
+
+file(READ ${CMAKE_CURRENT_SOURCE_DIR}/VERSION PLUGIN_VERSION)
+
+set(CPACK_PACKAGE_NAME "spmfilter-clamav")
+set(CPACK_PACKAGE_VENDOR "spmfilter.org")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "check mails for viruses with ClamAV")
+set(CPACK_PACKAGE_DESCRIPTION_FILE ${CMAKE_CURRENT_SOURCE_DIR}/README)
+set(CPACK_PACKAGE_VERSION ${PLUGIN_VERSION})
+set(CPACK_COMPONENTS_ALL applications libraries headers)
+
+set(CPACK_SOURCE_PACKAGE_FILE_NAME "${CPACK_PACKAGE_NAME}-${PLUGIN_VERSION}")
+set(CPACK_SOURCE_GENERATOR TGZ)
+set(CPACK_SOURCE_IGNORE_FILES
+"\\\\.hg"
+"nbproject"
+"cmake_build"
+"build\\\\.properties"
+"spmfilter-clamav-Makefile\\\\.mk"
+"\\\\.dep\\\\.inc"
+)
+
+include(CPack)
