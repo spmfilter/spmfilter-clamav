@@ -36,11 +36,11 @@ add_header = true
 header_name = X-Spmfilter-Virus-Scanned
 scan_direction = 0
 
-
 If you want to inform your users within templates about which malicious software has been found by 
 ClamAV, you can use the '%virus%' expansion which will be replaced by the full name of the virus 
 detected. Also there is a '%sender%' expansion which you can use within your templates to inform 
-the recipient about the origin sender.
+the recipient about the origin sender. If notitifications are enabled, notification_sender and
+notification_template are mandatory.
 
 
 WEB SITE
