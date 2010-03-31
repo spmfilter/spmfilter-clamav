@@ -51,8 +51,6 @@ static int template_exists(char *in_filename) {
 	}
 }
 
-
-
 int get_clam_config(void) {
 	clam_settings = g_slice_new(ClamAVSettings_T);
 
@@ -75,10 +73,8 @@ int get_clam_config(void) {
 	if (!clam_settings->notification)
 		clam_settings->notification = 0;
 
-
 	if(clam_settings->notification != 0) {
 		clam_settings->notification_template = smf_settings_group_get_string("notification_template");
-
 		if(clam_settings->notification_template == NULL) {
 			TRACE(TRACE_ERR, "notification enabled but \"notification_template\" undefined");
 			return -1;
@@ -87,14 +83,12 @@ int get_clam_config(void) {
 					clam_settings->notification_template);
 			return -1;
 		}
-
 		clam_settings->notification_sender = smf_settings_group_get_string("notification_sender");
 		if(clam_settings->notification_sender == NULL) {
 			TRACE(TRACE_ERR, "notification enabled but \"notification_sender\" undefined");
 			return -1;
 		}
 	}
-		
 	clam_settings->notification_subject = smf_settings_group_get_string("notification_subject");
 	if (clam_settings->notification_subject == NULL)
 		clam_settings->notification_subject = g_strdup("Virus notification");
@@ -262,11 +256,6 @@ int send_notify(SMFSession_T *session, char *virname) {
 		free(mail_content);
 	return 0;
 }
-
-
-
-
-
 
 int load(SMFSession_T *session) {
 	int fd_socket, errno, ret, fh;
