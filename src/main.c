@@ -56,8 +56,27 @@ int get_clam_config(void) {
 	if (!clam_settings->notification)
 		clam_settings->notification = 0;
 
-	clam_settings->notification_template = smf_settings_group_get_string("notification_template");
-	clam_settings->notification_sender = smf_settings_group_get_string("notification_sender");
+
+	if(clam_settings->notification != 0) {
+
+		if(clam_settings->notification_template != NULL) {
+			clam_settings->notification_template = smf_settings_group_get_string("notification_template");
+		} else {
+			TRACE(TRACE_ERR, "notification enabled but \"notification_template\" undefined");
+			return -1;
+		}
+		if(clam_settings->notification_sender != NULL) {
+			clam_settings->notification_sender = smf_settings_group_get_string("notification_sender");
+		} else {
+			TRACE(TRACE_ERR, "notification enabled but \"notification_sender\" undefined");
+			return -1;
+		}
+	}
+
+	clam_settings->notification_subject = smf_settings_group_get_string("notification_subject");
+	if (clam_settings->notification_subject == NULL)
+		clam_settings->notification_subject = g_strdup("Virus notification");
+
 	clam_settings->add_header = smf_settings_group_get_boolean("add_header");
 	if (!clam_settings->add_header)
 		clam_settings->add_header = 0;
@@ -65,10 +84,6 @@ int get_clam_config(void) {
 	clam_settings->header_name = smf_settings_group_get_string("header_name");
 	if (clam_settings->header_name == NULL)
 		clam_settings->header_name = g_strdup("X-Spmfilter-Virus-Scanned");
-
-	clam_settings->notification_subject = smf_settings_group_get_string("notification_subject");
-	if (clam_settings->notification_subject == NULL)
-		clam_settings->notification_subject = g_strdup("Virus notification");
 
 	clam_settings->scan_direction = smf_settings_group_get_integer("scan_direction");
 	if (!clam_settings->scan_direction)
