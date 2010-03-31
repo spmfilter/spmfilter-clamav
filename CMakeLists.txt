@@ -10,9 +10,18 @@ if(PREFIX)
     SET(CMAKE_INSTALL_PREFIX ${PREFIX})
 endif(PREFIX)
 
-include(FindPkgConfig)
+# internal project settings
+#set(SMF_LIB_DIR "${CMAKE_INSTALL_PREFIX}/lib/spmfilter")
+#message(STATUS "using smf library dir ${SMF_LIB_DIR}")
 
-pkg_search_module(SPMFILTER REQUIRED spmfilter >= 0.3)
+# NO NEED TO CHANGE ANYTHING BELOW
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/Modules/")
+
+# includes
+include(FindPkgConfig)
+include(SMFMacros)
+
+pkg_search_module(SPMFILTER REQUIRED spmfilter)
 if(SPMFILTER_FOUND)
     include_directories(${SPMFILTER_INCLUDE_DIRS})
     link_directories(${SPMFILTER_LIBRARY_DIRS})
@@ -31,14 +40,5 @@ if(GLIB2_FOUND)
     link_directories(${GLIB2_LIBRARY_DIRS})
 endif(GLIB2_FOUND)
 
-# check out current version
-file(READ ${CMAKE_CURRENT_SOURCE_DIR}/VERSION PLUGIN_VERSION)
-
 add_subdirectory(src)
-
-# * * * custom targets * * *
-set(PLUGIN_ARCHIVE_NAME "${CMAKE_PROJECT_NAME}-${PLUGIN_VERSION}")
-
-add_custom_target(dist
-    COMMAND hg archive --prefix="${PLUGIN_ARCHIVE_NAME}" -t tgz "${PLUGIN_ARCHIVE_NAME}.tar.gz"
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+add_subdirectory(man)
