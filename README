@@ -1,0 +1,89 @@
+WHAT IS SPMFILTER-CLAMAV?
+--------------------------
+
+clamav is a plugin for spmfilter that enables spmfilter to check mails with the Clam AntiVirus 
+open source toolkit for viruses. The major goal of this plugin is to provide an easy way for 
+virus-scanning emails. If ClamAV detects malicious software like viruses the affected email is 
+discarded by the plugin. Optionally notifications can be enabled to inform the recipients and 
+sender (configurable) about the discarded message. Activation of the module is done by adding 
+clamav to the modules-variable with the [global]-section in spmfilter.conf like follows:
+
+[global]
+...
+modules=clamav
+...
+
+Please note that ClamAV needs to listen on a TCP/IP-socket instead of a local socket to interact 
+with the spmfilter clamav-plugin. This is achieved by replacing the option "LocalSocket" with 
+"TCPSocket" and "TCPAddr" in clamd.conf as follows:
+
+TCPSocket 3310
+TCPAddr 127.0.0.1
+
+Configuration of the spmfilter clamav-plugin is done by adding a new section for clamav to 
+spmfilter.conf
+
+
+[clamav]
+host = 127.0.0.1
+port = 3310
+max_scan_size = 2097152
+notification = 0
+notification_template = /path/to/clamav-template.txt
+notification_sender = postmaster@example.com
+notification_subject = Virus detected
+add_header = true
+header_name = X-Spmfilter-Virus-Scanned
+scan_direction = 0
+
+
+If you want to inform your users within templates about which malicious software has been found by 
+ClamAV, you can use the '%virus%' expansion which will be replaced by the full name of the virus 
+detected. Also there is a '%sender%' expansion which you can use within your templates to inform 
+the recipient about the origin sender.
+
+
+WEB SITE
+--------
+
+The main spmfilter site is here:
+
+	http://www.spmfilter.org
+
+You'll find a FAQ list, downloads, resources, HTML versions of the
+manpages, etc.
+
+
+MAILING LISTS
+-------------
+
+There are two mailing lists devoted to spmfilter.
+
+  - Users mailing list (http://groups.google.com/group/spmfilter-users)
+    The main list for help and announcements.
+  
+  - Developers mailing list (http://groups.google.com/group/spmfilter-devel)
+    The developers mailing list is used for discussions and questions about 
+    the development of spmfilter or plugins.
+
+
+BUG REPORTS
+-----------
+
+To visit this web page for full the details on bug reporting:
+
+	http://www.spmfilter.org/projects/spmfilter/issues
+
+
+MERCURIAL REPOSITORY
+--------------------
+
+If you want to get the very latest version of spmfilter direct from the
+source code repository then you can use mercurial:
+
+	hg clone http://www.spmfilter.org/hg/spmfilter-clamav
+	
+See the download page for full details on all the ways to grab the
+source web-browsing of the mercurial repository, etc.:
+
+	http://www.spmfilter.org/projects/spmfilter/files

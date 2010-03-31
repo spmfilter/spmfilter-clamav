@@ -1,0 +1,109 @@
+.TH "spmfilter-clamav" "1" "31. March 2010" "" ""
+
+.SH "NAME"
+spmfilter-clamav - spmfilter ClamAV-plugin
+.SH "SYNOPSIS" 
+.P
+\fB[clamav]\fR
+
+.SH "DESCRIPTION"
+.P
+
+clamav is a plugin for spmfilter that enables spmfilter to check mails with the Clam AntiVirus 
+open source toolkit for viruses. The major goal of this plugin is to provide an easy way for 
+virus-scanning emails. If ClamAV detects malicious software like viruses the affected email is 
+discarded by the plugin. Optionally notifications can be enabled to inform the recipients and 
+sender (configurable) about the discarded message. Activation of the module is done by adding 
+clamav to the modules-variable with the [global]-section in spmfilter.conf like follows:
+
+[global]
+.br
+ ...
+.br
+modules = clamav
+.br
+ ...
+
+Please note that ClamAV needs to listen on a TCP/IP-socket instead of a local socket to interact 
+with the spmfilter clamav-plugin. This is achieved by replacing the option "LocalSocket" with 
+"TCPSocket" and "TCPAddr" in clamd.conf
+
+.SH "OPTIONS"
+.P
+
+Configuration of the spmfilter clamav-plugin is done by adding a new section for clamav to 
+spmfilter.conf
+
+[clamav]
+.br 
+host = 127.0.0.1
+.br 
+port = 3310
+.br 
+max_scan_size = 2097152
+.br 
+notification = 0
+.br 
+notification_template = /path/to/clamav-template.txt
+.br 
+notification_sender = postmaster@example.com
+.br 
+notification_subject = Virus detected
+.br 
+add_header = true
+.br 
+header_name = X-Spmfilter-Virus-Scanned
+.br 
+scan_direction = 0
+
+.IP \fBhost\fR
+IP-address of the ClamAV-daemon. This option is mandatory.
+
+.IP \fBport\fR
+Port on which the ClamAV-daemon listens. This parameter is optional, port 3310 is used as default
+if the port is not defined.
+
+.IP \fBmax_scan_size\fR
+Files larger than this limit won't be scanned, defined in bytes. This parameter is optional, 5MB
+is used as default if max_scan_size is not defined.
+
+.IP \fBnotification\fR
+Enables or disables notifications of recipient if virus detected. Possible values: 0 (notification 
+disabled), 1 (notify recipient), 2 (notify sender and recipient). If the smtp-engine of spmfilter 
+is used, envelope-addresses are used for notification. Otherwise if the message was delivered to 
+spmfilter by the pipe-engine all address are extracted from the header. Default: 0 (notification 
+disabled).
+
+.IP \fBnotification_template\fR
+Absolute path to the notification template. If you want to inform your users within templates about 
+which malicious software has been found by ClamAV, you can use the '%virus%' expansion which will be 
+replaced by the full name of the virus detected. Also there is a '%sender%' expansion which you can 
+use within your templates to inform the recipient about the origin sender.
+
+.IP \fBnotification_sender\fR
+Define sender address for notifications. This parameter is optional.
+
+.IP \fBnotification_subject\fR
+Subject String for notification messages. This parameter is optional, the string "Virus notification"
+is used as default if unspecified.
+
+.IP \fBadd_header\fR
+Add header for scanned message. Possible values: true (add header), false (don't add header). Default
+is "false".
+
+.IP \fBheader_name\fR
+Define X-header-name for scanned messages. This parameter is optional, "X-Spmfilter-Virus-Scanned" is
+used as default if unspecified.
+
+.IP \fBscan_direction\fR
+Define direction to scan. Possible values: 0 (scan incoming and outgoing mail), 1 (scan incoming mails only), 
+2 (scan outgoing mails only). This parameter is optional, 0 is used as default if unspecified (scan incoming
+and outgoing mails).
+
+.SH "SEE ALSO"
+.P
+spmfilter.conf(5), spmfilter(3)
+
+.SH "AUTHOR(S)"
+.P
+spmfilter-clamav was written by Axel Steiner <ast@treibsand.com>
