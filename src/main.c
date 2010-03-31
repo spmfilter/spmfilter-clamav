@@ -34,6 +34,25 @@
 
 ClamAVSettings_T *clam_settings;
 
+
+/** check if notification_template is readable
+ *
+ * \param in_filename (absolute path of notification_template)
+ *
+ * \returns 0 if template can be read, -1 if file cannot be read
+ */
+static int template_exists(char *in_filename) {
+	FILE *pf;
+	if (pf = fopen(in_filename, "r")) {
+		fclose(pf);
+		return 0;
+	} else {
+		return -1;
+	}
+}
+
+
+
 int get_clam_config(void) {
 	clam_settings = g_slice_new(ClamAVSettings_T);
 
@@ -59,8 +78,13 @@ int get_clam_config(void) {
 
 	if(clam_settings->notification != 0) {
 		clam_settings->notification_template = smf_settings_group_get_string("notification_template");
+
 		if(clam_settings->notification_template == NULL) {
 			TRACE(TRACE_ERR, "notification enabled but \"notification_template\" undefined");
+			return -1;
+		} else if (template_exists(clam_settings->notification_template) == -1) {
+			TRACE(TRACE_ERR, "defined notification_template \"%s\" cannot be read",
+					clam_settings->notification_template);
 			return -1;
 		}
 
@@ -238,6 +262,11 @@ int send_notify(SMFSession_T *session, char *virname) {
 		free(mail_content);
 	return 0;
 }
+
+
+
+
+
 
 int load(SMFSession_T *session) {
 	int fd_socket, errno, ret, fh;
