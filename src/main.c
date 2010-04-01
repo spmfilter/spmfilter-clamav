@@ -25,6 +25,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <glib.h>
+#include <glib/gstdio.h>
 
 #include <spmfilter.h>
 
@@ -42,13 +43,10 @@ ClamAVSettings_T *clam_settings;
  * \returns 0 if template can be read, -1 if file cannot be read
  */
 static int template_exists(char *in_filename) {
-	FILE *pf;
-	if (pf = fopen(in_filename, "r")) {
-		fclose(pf);
+	if (g_file_test(in_filename, G_FILE_TEST_IS_REGULAR))
 		return 0;
-	} else {
+	else
 		return -1;
-	}
 }
 
 int get_clam_config(void) {

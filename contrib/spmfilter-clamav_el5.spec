@@ -24,7 +24,7 @@ open source toolkit
 %setup -q -n %{name}-%{version}
 
 %build
-cmake -DPREFIX=/usr .
+cmake -DPREFIX=/usr -DENABLE_DEBUG:BOOL=TRUE .
 make 
   
 %install

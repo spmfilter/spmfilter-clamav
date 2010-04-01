@@ -36,10 +36,10 @@ if(GLIB2_FOUND)
     link_directories(${GLIB2_LIBRARY_DIRS})
 endif(GLIB2_FOUND)
 
+file(READ ${CMAKE_CURRENT_SOURCE_DIR}/VERSION PLUGIN_VERSION)
+
 add_subdirectory(src)
 add_subdirectory(man)
-
-file(READ ${CMAKE_CURRENT_SOURCE_DIR}/VERSION PLUGIN_VERSION)
 
 set(CPACK_PACKAGE_NAME "spmfilter-clamav")
 set(CPACK_PACKAGE_VENDOR "spmfilter.org")
