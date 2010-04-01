@@ -30,12 +30,15 @@ make
 %install
 rm -rf $RPM_BUILD_ROOT
 make install DESTDIR=$RPM_BUILD_ROOT
+mkdir -p $RPM_BUILD_ROOT%{_sysconfdir}
+install contrib/virus-notify.txt $RPM_BUILD_ROOT%{_sysconfdir}/virus-notify.txt
 
 %clean
 rm -rf $RPM_BUILD_ROOT
 
 %files
 %defattr(-,root,root,-)
+%{_sysconfdir}/virus-notify.txt
 %{_libdir}/spmfilter/libclamav*
 %{_mandir}/man*/*
 

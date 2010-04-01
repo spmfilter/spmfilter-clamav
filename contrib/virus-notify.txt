@@ -1,0 +1,14 @@
+-----------------------------------------------------------------------------
+#                           Virus warning                                   #
+-----------------------------------------------------------------------------
+
+While scanning a message to you from %sender%, 
+one or more viruses were found. This message has been discarded. Please 
+contact your system administrator for details.
+
+
+Information:
+-----------------------------------------------------------------------------
+    %virus%
+-----------------------------------------------------------------------------
+
