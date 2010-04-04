@@ -8,9 +8,10 @@ Vendor: spmfilter.org
 URL: http://www.spmfilter.org
 Requires: spmfilter >= 0.4.0
 Requires: glib2 >= 2.12
+
 BuildRequires: cmake >= 2.6
 BuildRequires: glib2-devel >= 2.12
-BuildRequires: spmfilter >= 0.4.0
+BuildRequires: spmfilter-devel >= 0.4.0
 Buildroot: %{_tmppath}/%{name}-%{version}-%{release}-root
 
 Source: %{name}-%{version}.tar.gz

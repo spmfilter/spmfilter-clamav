@@ -12,5 +12,5 @@ target_link_libraries(clamav ${SPMFILTER_LIBRARIES} ${GLIB2_LIBRARIES})
 
 install(TARGETS clamav
 	RUNTIME DESTINATION bin
-	LIBRARY DESTINATION lib/spmfilter
+	LIBRARY DESTINATION ${LIBDIR}/spmfilter
 )
