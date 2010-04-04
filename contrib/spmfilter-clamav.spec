@@ -1,7 +1,7 @@
 Summary: spmfilter clamav plugin 
 Name: spmfilter-clamav
 Version: 0.1
-Release: el5.1
+Release: 1%{?dist}
 License: LGPL
 Group: Development/Libraries
 Vendor: spmfilter.org
