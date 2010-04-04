@@ -9,6 +9,8 @@ URL: http://www.spmfilter.org
 Requires: spmfilter >= 0.4.0
 Requires: glib2 >= 2.12
 
+BuildRequires: libstdc++-devel
+BuildRequires: gcc-c++
 BuildRequires: cmake >= 2.6
 BuildRequires: glib2-devel >= 2.12
 BuildRequires: spmfilter-devel >= 0.4.0
@@ -25,7 +27,11 @@ open source toolkit
 %setup -q -n %{name}-%{version}
 
 %build
-cmake -DPREFIX=/usr -DENABLE_DEBUG:BOOL=TRUE .
+%ifarch x86_64
+cmake -DPREFIX=/usr -DLIBDIR:STRING=lib64 .
+%else
+cmake -DPREFIX=/usr .
+%endif
 make 
   
 %install
