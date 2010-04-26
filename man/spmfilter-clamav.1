@@ -101,6 +101,12 @@ Define direction to scan. Possible values: 0 (scan incoming and outgoing mail), 
 2 (scan outgoing mails only). This parameter is optional, 0 is used as default if unspecified (scan incoming
 and outgoing mails). Lookup-backend required for option 1 or 2.
 
+.IP \fBreject_virus\fR
+If true, infected messages will be rejected by spmfilter.
+
+.IP \fBreject_msg\fR
+Define optional reject message.
+
 .SH "SEE ALSO"
 .P
 spmfilter.conf(5), spmfilter(3)

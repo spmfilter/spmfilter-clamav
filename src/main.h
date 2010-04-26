@@ -27,16 +27,18 @@ enum {
 };
 
 typedef struct {
-	char *host;
+	gchar *host;
 	int port;
 	int max_scan_size;
 	int add_header;
-	char *header_name;
+	gchar *header_name;
 	int notification;
-	char *notification_template;
-	char *notification_sender;
-	char *notification_subject;
+	gchar *notification_template;
+	gchar *notification_sender;
+	gchar *notification_subject;
 	int scan_direction;
+	int reject_virus;
+	gchar *reject_msg;
 } ClamAVSettings_T;
 
 #endif	/* _MAIN_H */

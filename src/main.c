@@ -28,13 +28,11 @@
 #include <glib/gstdio.h>
 
 #include <spmfilter.h>
+#include <spmfilter_config.h>
 
 #include "main.h"
 
 #define THIS_MODULE "clamav"
-
-ClamAVSettings_T *clam_settings;
-
 
 /** check if notification_template is readable
  *
@@ -49,12 +47,24 @@ static int template_exists(char *in_filename) {
 		return -1;
 }
 
-int get_clam_config(void) {
+void free_clam_config(ClamAVSettings_T *clam_settings) {
+	g_free(clam_settings->host);
+	g_free(clam_settings->header_name);
+	g_free(clam_settings->notification_template);
+	g_free(clam_settings->notification_sender);
+	g_free(clam_settings->notification_subject);
+	g_free(clam_settings->reject_msg);
+	g_slice_free(ClamAVSettings_T,clam_settings);
+}
+
+ClamAVSettings_T *get_clam_config(void) {
+	ClamAVSettings_T *clam_settings = NULL;
+
 	clam_settings = g_slice_new(ClamAVSettings_T);
 
 	if (smf_settings_group_load(THIS_MODULE) != 0) {
 		TRACE(TRACE_ERR,"config group clamav does not exist");
-		return -1;
+		return NULL;
 	}
 
 	clam_settings->host = smf_settings_group_get_string("host");
@@ -75,16 +85,19 @@ int get_clam_config(void) {
 		clam_settings->notification_template = smf_settings_group_get_string("notification_template");
 		if(clam_settings->notification_template == NULL) {
 			TRACE(TRACE_ERR, "notification enabled but \"notification_template\" undefined");
-			return -1;
+			free_clam_config(clam_settings);
+			return NULL;
 		} else if (template_exists(clam_settings->notification_template) == -1) {
 			TRACE(TRACE_ERR, "defined notification_template \"%s\" cannot be read",
 					clam_settings->notification_template);
-			return -1;
+			free_clam_config(clam_settings);
+			return NULL;
 		}
 		clam_settings->notification_sender = smf_settings_group_get_string("notification_sender");
 		if(clam_settings->notification_sender == NULL) {
 			TRACE(TRACE_ERR, "notification enabled but \"notification_sender\" undefined");
-			return -1;
+			free_clam_config(clam_settings);
+			return NULL;
 		}
 	}
 	clam_settings->notification_subject = smf_settings_group_get_string("notification_subject");
@@ -103,6 +116,9 @@ int get_clam_config(void) {
 	if (!clam_settings->scan_direction)
 		clam_settings->scan_direction = 0;
 
+	clam_settings->reject_virus = smf_settings_group_get_boolean("reject_virus");
+	clam_settings->reject_msg = smf_settings_group_get_string("reject_msg");
+
 	TRACE(TRACE_DEBUG,"clam_settings->host: %s",clam_settings->host);
 	TRACE(TRACE_DEBUG,"clam_settings->port: %d",clam_settings->port);
 	TRACE(TRACE_DEBUG,"clam_settings->max_scan_size: %d",clam_settings->max_scan_size);
@@ -113,14 +129,16 @@ int get_clam_config(void) {
 	TRACE(TRACE_DEBUG,"clam_settings->add_header: %d",clam_settings->add_header);
 	TRACE(TRACE_DEBUG,"clam_settings->header_name: %s",clam_settings->header_name);
 	TRACE(TRACE_DEBUG,"clam_settings->scan_direction: %d",clam_settings->scan_direction);
+	TRACE(TRACE_DEBUG,"clam_settings->reject_virus: %d",clam_settings->reject_virus);
+	TRACE(TRACE_DEBUG,"clam_settings->reject_msg: %s",clam_settings->reject_msg);
 
-	return 0;
+	return clam_settings;
 }
 
-char *get_template(char *template_file, char *virus, char *virus_sender) {
+char *get_template(gchar *template_file, gchar *virus, gchar *virus_sender) {
 	FILE *fp;
-	int i, count =0;
-	char *template;
+	int i, errno, count = 0;
+	gchar *template;
 	int vt_newlen = strlen(virus);
 	int st_newlen = strlen(virus_sender);
 	int vt_oldlen = strlen(VIRUS_TOKEN);
@@ -133,11 +151,32 @@ char *get_template(char *template_file, char *virus, char *virus_sender) {
 		return NULL;
 	}
 
-	fseek(fp,0,SEEK_END);
+	if (fseek(fp,0,SEEK_END) != 0) {
+		TRACE(TRACE_ERR,"seek failed: %s",strerror(errno));
+		fclose(fp);
+		return NULL;
+	}
 	len = ftell(fp);
-	fseek(fp,0,SEEK_SET); 
-	template = (char *)malloc(len);
-	fread(template,len,1,fp);
+	if (len == -1) {
+		TRACE(TRACE_ERR,"tell failed: %s",strerror(errno));
+		fclose(fp);
+		return NULL;
+	}
+	
+	if (fseek(fp,0,SEEK_SET) != 0) {
+		TRACE(TRACE_ERR,"seek failed: %s",strerror(errno));
+		fclose(fp);
+		return NULL;
+	}
+	template = (gchar *)malloc(len);
+
+	if (fread(template,len,1,fp) == 0) {
+		TRACE(TRACE_ERR,"seek failed: %s",strerror(errno));
+		g_free(template);
+		fclose(fp);
+		return NULL;
+	}
+	
 	fclose(fp);
 
 	for (i = 0; template[i]; ++i) {
@@ -148,27 +187,31 @@ char *get_template(char *template_file, char *virus, char *virus_sender) {
   	}
 
 	newlen = (vt_newlen - vt_oldlen) + (st_newlen - vt_oldlen);
-	char *content = (char *) calloc(i + 1 + count * newlen, sizeof(char));
-	if (!content) return NULL;
+	gchar *content = (gchar *) calloc(i + 1 + count * newlen, sizeof(gchar));
+	if (!content) {
+		fclose(fp);
+		g_free(template);
+		return NULL;
+	}
 
 	i = 0;
 	while (*template) {
-		if (strstr(template, VIRUS_TOKEN) == template) {
-			strcpy(&content[i], virus),
+		if (g_strrstr(template,VIRUS_TOKEN) == template) {
+			g_stpcpy(&content[i], virus),
 					i += vt_newlen,template += vt_oldlen;
-		} else if (strstr(template, SENDER_TOKEN) == template) {
-			strcpy(&content[i],virus_sender),
+		} else if (g_strrstr(template,SENDER_TOKEN) == template) {
+			g_stpcpy(&content[i],virus_sender),
 					i += st_newlen,template += st_oldlen;
 		}else
 			content[i++] = *template++;
-  	}
+	}
 
 	content[i] = '\0';
-
 	return content;
 }
 
-int generate_message(char *content, char *recipient, char *nexthop) {
+int generate_message(gchar *sender, gchar *subject,
+		gchar *content, gchar *recipient, gchar *nexthop) {
 	SMFMessageEnvelope_T *envelope;
 	SMFMessage_T *message;
 	SMFMimePart_T *mime_part;
@@ -177,13 +220,13 @@ int generate_message(char *content, char *recipient, char *nexthop) {
 
 	envelope = smf_message_envelope_new();
 	envelope = smf_message_envelope_add_rcpt(envelope,recipient);
-	envelope->from = g_strdup(clam_settings->notification_sender);
+	envelope->from = g_strdup(sender);
 	envelope->nexthop = g_strdup(nexthop);
 
 	message = smf_message_new();
-	smf_message_set_sender(message,clam_settings->notification_sender);
+	smf_message_set_sender(message,sender);
 	smf_message_add_recipient(message,SMF_RECIPIENT_TYPE_TO,NULL,recipient);
-	smf_message_set_subject(message,clam_settings->notification_subject);
+	smf_message_set_subject(message,subject);
 
 	mime_part = smf_mime_part_new(NULL,NULL);
 	smf_mime_part_set_disposition(mime_part,SMF_DISPOSITION_INLINE);
@@ -202,34 +245,36 @@ int generate_message(char *content, char *recipient, char *nexthop) {
 	return 0;
 }
 
-int send_notify(SMFSession_T *session, char *virname) {
+int send_notify(ClamAVSettings_T *clam_settings,SMFSession_T *session, gchar *virname) {
 	SMFSettings_T *settings = smf_settings_get();
 	int i;
-	char *mail_content = NULL;
+	gchar *mail_content = NULL;
 
 	if (clam_settings->notification == 0) {
 		return 0;
 	} else {
-
 		if (session->envelope_from != NULL)
 			mail_content = get_template(clam_settings->notification_template,
 							virname,session->envelope_from->addr);
 		else if (session->message_from != NULL)
 			mail_content = get_template(clam_settings->notification_template,
 							virname,session->message_from->addr);
-
 		if (clam_settings->notification <= 2) {
 			if (session->envelope_to != NULL) {
 				for (i=0; i < session->envelope_to_num; i++) {
 					TRACE(TRACE_DEBUG,"sending notification to [%s]",session->envelope_to[i]->addr);
-					generate_message(mail_content,
+					generate_message(clam_settings->notification_sender,
+							clam_settings->notification_subject,
+							mail_content,
 							session->envelope_to[i]->addr,
 							settings->nexthop);
 				}
 			} else if (session->message_to != NULL) {
 				for (i=0; i < session->message_to_num; i++) {
 					TRACE(TRACE_DEBUG,"sending notification to [%s]",session->message_to[i]->addr);
-					generate_message(mail_content,
+					generate_message(clam_settings->notification_sender,
+							clam_settings->notification_subject,
+							mail_content,
 							session->message_to[i]->addr,
 							settings->nexthop);
 				}
@@ -238,22 +283,25 @@ int send_notify(SMFSession_T *session, char *virname) {
 		if (clam_settings->notification == 2) {
 			if (session->envelope_from != NULL) {
 				TRACE(TRACE_DEBUG,"sending notification to [%s]",session->envelope_from->addr);
-				generate_message(mail_content,
+				generate_message(clam_settings->notification_sender,
+						clam_settings->notification_subject,
+						mail_content,
 						session->envelope_from->addr,
 						settings->nexthop);
 			} else if (session->message_from != NULL) {
 				TRACE(TRACE_DEBUG,"sending notification to [%s]",session->message_from->addr);
-				generate_message(mail_content,
+				generate_message(clam_settings->notification_sender,
+						clam_settings->notification_subject,
+						mail_content,
 						session->message_from->addr,
 						settings->nexthop);
 			}
 		}
 	}
-
-	if (mail_content != NULL)
-		free(mail_content);
 	return 0;
 }
+
+
 
 int load(SMFSession_T *session) {
 	int fd_socket, errno, ret, fh;
@@ -261,24 +309,27 @@ int load(SMFSession_T *session) {
 	int bytes = 0;
 	uint32_t conv;
 	char r_buf[BUFSIZE];
-	char *transmit = NULL;
-	char *clam_result = NULL;
+	gchar *transmit = NULL;
+	gchar *clam_result = NULL;
+	ClamAVSettings_T *clam_settings;
 
 	TRACE(TRACE_DEBUG,"clamav loaded");
-	if (get_clam_config()!=0)
+	clam_settings = get_clam_config();
+	if (clam_settings == NULL) {
+		TRACE(TRACE_ERR,"failed to retrieve config");
 		return -1;
-
+	}
 
 	if (session->envelope_from != NULL) {
 		if ((session->envelope_from->is_local == 1) &&
 				(clam_settings->scan_direction == 1)) {
 			TRACE(TRACE_DEBUG,"skipping virus check; scanning only incoming connections");
-			g_slice_free(ClamAVSettings_T,clam_settings);
+			free_clam_config(clam_settings);
 			return 0;
 		} else if ((session->envelope_from->is_local == 0) &&
 				(clam_settings->scan_direction == 2)) {
 			TRACE(TRACE_DEBUG,"skipping virus check; scanning only outgoing connections");
-			g_slice_free(ClamAVSettings_T,clam_settings);
+			free_clam_config(clam_settings);
 			return 0;
 		}
 
@@ -286,12 +337,12 @@ int load(SMFSession_T *session) {
 		if ((session->message_from->is_local == 1) &&
 				(clam_settings->scan_direction == 1)) {
 			TRACE(TRACE_DEBUG,"skipping virus check; scanning only incoming connections");
-			g_slice_free(ClamAVSettings_T,clam_settings);
+			free_clam_config(clam_settings);
 			return 0;
 		} else if ((session->message_from->is_local == 0) &&
 				(clam_settings->scan_direction == 2)) {
 			TRACE(TRACE_DEBUG,"skipping virus check; scanning only outgoing connections");
-			g_slice_free(ClamAVSettings_T,clam_settings);
+			free_clam_config(clam_settings);
 			return 0;
 		}
 	}
@@ -306,12 +357,16 @@ int load(SMFSession_T *session) {
 	fd_socket = socket(AF_INET, SOCK_STREAM, 0);
 	if(fd_socket < 0) {
 		TRACE(TRACE_ERR,"create socket failed: %s",strerror(errno));
-		return -1; 
+		g_free(transmit);
+		free_clam_config(clam_settings);
+		return -1;
 	}
 	
 	ret = connect(fd_socket, (struct sockaddr *)&sa, sizeof(sa));
 	if(ret < 0) {
 		TRACE(TRACE_ERR, "unable to connect to [%s]: %s", clam_settings->host, strerror(errno));
+		g_free(transmit);
+		free_clam_config(clam_settings);
 		return -1;
 	}
 
@@ -320,6 +375,8 @@ int load(SMFSession_T *session) {
 	if(fh < 0) {
 		TRACE(TRACE_ERR, "unable to open queue file [%s]: %s", session->queue_file, strerror(errno));
 		close(fd_socket);
+		g_free(transmit);
+		free_clam_config(clam_settings);
 		return -1;
 	}
 
@@ -331,6 +388,8 @@ int load(SMFSession_T *session) {
 		TRACE(TRACE_ERR, "sending of command failed: %s",strerror(errno));
 		close(fd_socket);
 		close(fh);
+		g_free(transmit);
+		free_clam_config(clam_settings);
 		return -1;
 	}
 	
@@ -345,6 +404,8 @@ int load(SMFSession_T *session) {
 			TRACE(TRACE_ERR,"failed to send a chunk: %s",strerror(errno));
 			close(fd_socket);
 			close(fh);
+			g_free(transmit);
+			free_clam_config(clam_settings);
 			return -1;
 		}
 		memset(transmit, 0, BUFSIZE+4); 
@@ -363,6 +424,8 @@ int load(SMFSession_T *session) {
 	if(ret <= 0) {
 		TRACE(TRACE_DEBUG,"failed to send terminating chunk: %s",strerror(errno));
 		close(fd_socket);
+		g_free(transmit);
+		free_clam_config(clam_settings);
 		return -1;
 	}
 
@@ -373,15 +436,27 @@ int load(SMFSession_T *session) {
 	clam_result = smf_core_get_substring("^stream: (.*)(?!FOUND\b)\\b\\w+$",r_buf,1);
 
 	/* virus detected? */
-	if (strcmp(clam_result,"") != 0) {
+	if (g_ascii_strcasecmp(clam_result,"") != 0) {
 		TRACE(TRACE_DEBUG,"Virus found: %s", clam_result);
-		/* do we have to send a notification? */
-		if (clam_settings->notification != 0) {
-			TRACE(TRACE_INFO,"message dropped, virus [%s] detected",clam_result);
-			if (send_notify(session, clam_result) != 0)
-				TRACE(TRACE_WARNING,"failed to send notification mail");
+
+		if (clam_settings->reject_virus) {
+			if (SMF_VERSION >= 4001) {
+				if (clam_settings->reject_msg != NULL)
+					session->response_msg = g_strdup(clam_settings->reject_msg);
+			}
+			g_free(transmit);
+			g_free(clam_result);
+			free_clam_config(clam_settings);
+			return 554;
 		} else {
-			TRACE(TRACE_INFO,"message dropped, virus [%s] detected",clam_result);
+			/* do we have to send a notification? */
+			if (clam_settings->notification != 0) {
+				TRACE(TRACE_INFO,"message dropped, virus [%s] detected",clam_result);
+				if (send_notify(clam_settings,session, clam_result) != 0)
+					TRACE(TRACE_WARNING,"failed to send notification mail");
+			} else {
+				TRACE(TRACE_INFO,"message dropped, virus [%s] detected",clam_result);
+			}
 		}
 	} else {
 		clam_result = g_strdup("passed");
@@ -391,16 +466,15 @@ int load(SMFSession_T *session) {
 	if (clam_settings->add_header)
 		smf_session_header_append(clam_settings->header_name,clam_result);
 
-	if (transmit != NULL)
-		free(transmit);
-	g_slice_free(ClamAVSettings_T,clam_settings);
+	g_free(transmit);
+	free_clam_config(clam_settings);
 
 
-	if (strcmp(clam_result,"passed") == 0) {
-		free(clam_result);
+	if (g_ascii_strcasecmp(clam_result,"passed") == 0) {
+		g_free(clam_result);
 		return 0;
 	} else {
-		free(clam_result);
+		g_free(clam_result);
 		return 1;
 	}
 }
