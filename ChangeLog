@@ -1,3 +1,5 @@
+2010-04-30	Axel Steiner <ast@treibsand.com>
+	* main.c Fixed several stuff. Added new checks for upcoming version of spmfilter.
 2010-04-26	Axel Steiner <ast@treibsand.com>
 	* main.c Added new options (reject_virus and reject_msg) to directly reject
 	a virus infected mail (refs #5).

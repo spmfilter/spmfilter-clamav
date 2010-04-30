@@ -22,7 +22,7 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/Modules/")
 include(FindPkgConfig)
 include(SMFMacros)
 
-pkg_search_module(SPMFILTER REQUIRED spmfilter)
+pkg_search_module(SPMFILTER REQUIRED spmfilter >= 0.4)
 if(SPMFILTER_FOUND)
     include_directories(${SPMFILTER_INCLUDE_DIRS})
     link_directories(${SPMFILTER_LIBRARY_DIRS})

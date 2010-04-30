@@ -440,10 +440,12 @@ int load(SMFSession_T *session) {
 		TRACE(TRACE_DEBUG,"Virus found: %s", clam_result);
 
 		if (clam_settings->reject_virus) {
-			if (SMF_VERSION >= 4001) {
-				if (clam_settings->reject_msg != NULL)
-					session->response_msg = g_strdup(clam_settings->reject_msg);
-			}
+#if (SMF_VERSION >= 4001)
+			if (clam_settings->reject_msg != NULL)
+				session->response_msg = g_strdup(clam_settings->reject_msg);
+			else
+				session->response_msg = g_strdup("virus found, message rejected");
+#endif
 			g_free(transmit);
 			g_free(clam_result);
 			free_clam_config(clam_settings);
@@ -464,8 +466,11 @@ int load(SMFSession_T *session) {
 
 	/* need to add a header? */
 	if (clam_settings->add_header)
+#if (SMF_VERSION >= 5000)
+		smf_session_header_append(session,clam_settings->header_name,clam_result);
+#else
 		smf_session_header_append(clam_settings->header_name,clam_result);
-
+#endif
 	g_free(transmit);
 	free_clam_config(clam_settings);
 
@@ -474,6 +479,9 @@ int load(SMFSession_T *session) {
 		g_free(clam_result);
 		return 0;
 	} else {
+#if (SMF_VERSION >= 4001)
+		session->response_msg = g_strdup("OK virus found, message dropped");
+#endif
 		g_free(clam_result);
 		return 1;
 	}
