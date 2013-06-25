@@ -22,7 +22,7 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/Modules/")
 include(FindPkgConfig)
 include(SMFMacros)
 
-pkg_search_module(SPMFILTER REQUIRED spmfilter >= 0.4)
+pkg_search_module(SPMFILTER REQUIRED spmfilter >= 0.6)
 if(SPMFILTER_FOUND)
     include_directories(${SPMFILTER_INCLUDE_DIRS})
     link_directories(${SPMFILTER_LIBRARY_DIRS})
@@ -33,13 +33,6 @@ if(ENABLE_DEBUG)
     set(CMAKE_VERBOSE_MAKEFILE TRUE)
     add_definitions(-DDEBUG -g -O0 -Wall)
 endif(ENABLE_DEBUG)
-
-# check for glib2
-pkg_search_module(GLIB2 REQUIRED glib-2.0)
-if(GLIB2_FOUND)
-    include_directories(${GLIB2_INCLUDE_DIRS})
-    link_directories(${GLIB2_LIBRARY_DIRS})
-endif(GLIB2_FOUND)
 
 file(READ ${CMAKE_CURRENT_SOURCE_DIR}/VERSION PLUGIN_VERSION)
 
@@ -56,12 +49,10 @@ set(CPACK_COMPONENTS_ALL applications libraries headers)
 set(CPACK_SOURCE_PACKAGE_FILE_NAME "${CPACK_PACKAGE_NAME}-${PLUGIN_VERSION}")
 set(CPACK_SOURCE_GENERATOR TGZ)
 set(CPACK_SOURCE_IGNORE_FILES
-"\\\\.hg"
+"\\\\.git"
 "nbproject"
-"cmake_build"
+"build"
 "build\\\\.properties"
-"spmfilter-clamav-Makefile\\\\.mk"
-"\\\\.dep\\\\.inc"
 )
 
 include(CPack)

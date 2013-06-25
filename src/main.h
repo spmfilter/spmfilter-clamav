@@ -1,5 +1,5 @@
 /* spmfilter-clamav - spmfilter ClamAV Plugin
- * Copyright (C) 2009-2010 Werner Detter and SpaceNet AG
+ * Copyright (C) 2009-2013 Werner Detter, Axel Steiner and SpaceNet AG
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -16,30 +16,29 @@
  */
 
 #ifndef _MAIN_H
-#define	_MAIN_H
+#define _MAIN_H
 
 #define VIRUS_TOKEN "%virus%"
 #define SENDER_TOKEN "%sender%"
 
 
 enum {
-	BUFSIZE = 1024
+  BUFSIZE = 1024
 };
 
 typedef struct {
-	gchar *host;
-	int port;
-	int max_scan_size;
-	int add_header;
-	gchar *header_name;
-	int notification;
-	gchar *notification_template;
-	gchar *notification_sender;
-	gchar *notification_subject;
-	int scan_direction;
-	int reject_virus;
-	gchar *reject_msg;
+  char *host;
+  int port;
+  int max_scan_size;
+  int add_header;
+  char *header_name;
+  int notification;
+  char *notification_template;
+  char *notification_sender;
+  char *notification_subject;
+  int scan_direction;
+  int reject_virus;
+  char *reject_msg;
 } ClamAVSettings_T;
 
-#endif	/* _MAIN_H */
-
+#endif  /* _MAIN_H */
