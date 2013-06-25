@@ -72,18 +72,18 @@ BUG REPORTS
 
 To visit this web page for full the details on bug reporting:
 
-	http://www.spmfilter.org/projects/spmfilter/issues
+	http://github.com/spmfilter/spmfilter-clamav/issues
 
 
-MERCURIAL REPOSITORY
+GIT REPOSITORY
 --------------------
 
-If you want to get the very latest version of spmfilter direct from the
-source code repository then you can use mercurial:
+If you want to get the very latest version of spmfilter-clamav direct from the
+source code repository then you can use git:
 
-	hg clone http://www.spmfilter.org/hg/spmfilter-clamav
+	git clone https://github.com/spmfilter/spmfilter-clamav.git
 	
 See the download page for full details on all the ways to grab the
 source web-browsing of the mercurial repository, etc.:
 
-	http://www.spmfilter.org/projects/spmfilter/files
+	http://www.spmfilter.org/files
