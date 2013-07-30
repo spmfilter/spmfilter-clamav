@@ -93,6 +93,8 @@ ClamAVSettings_T *get_clam_config(SMFSettings_T *settings, SMFSession_T *session
   if (!clam_settings->notification)
     clam_settings->notification = 0;
 
+  clam_settings->notification_template = smf_settings_group_get(settings,"clamav","notification_template");
+
   if(clam_settings->notification != 0) {
     if(clam_settings->notification_template == NULL) {
       TRACE(TRACE_ERR, "notification enabled but \"notification_template\" undefined");
