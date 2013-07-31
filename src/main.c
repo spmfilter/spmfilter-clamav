@@ -149,14 +149,14 @@ ClamAVSettings_T *get_clam_config(SMFSettings_T *settings, SMFSession_T *session
 
 char *get_template(SMFSession_T *session, char *template_file, char *virus, char *virus_sender) {
   FILE *fp;
-  int i, errno, count = 0;
-  char *template;
+  int i, errno;
+  char *template = NULL;
   int vt_newlen = strlen(virus);
   int st_newlen = strlen(virus_sender);
   int vt_oldlen = strlen(VIRUS_TOKEN);
   int st_oldlen = strlen(SENDER_TOKEN);
-  int newlen;
   long len;
+  char *content = NULL;
 
   if ((fp = fopen(template_file,"r")) == NULL) {
     STRACE(TRACE_ERR,session->id,"failed to open virus notify template");
@@ -180,9 +180,9 @@ char *get_template(SMFSession_T *session, char *template_file, char *virus, char
     fclose(fp);
     return NULL;
   }
-  template = (char *)malloc(len);
+  template = (char *)calloc(len,sizeof(char));
 
-  if (fread(template,len,1,fp) == 0) {
+  if (fread(template,sizeof(char),len,fp) == 0) {
     STRACE(TRACE_ERR,session->id,"seek failed: %s",strerror(errno));
     free(template);
     fclose(fp);
@@ -190,36 +190,34 @@ char *get_template(SMFSession_T *session, char *template_file, char *virus, char
   }
   
   fclose(fp);
+  template[strlen(template)] = '\0';
 
-  for (i = 0; template[i]; ++i) {
-    if (strstr(&template[i], VIRUS_TOKEN) == &template[i])
-      ++count, i += vt_oldlen - 1;
-    else if (strstr(&template[i], SENDER_TOKEN) == &template[i])
-      ++count, i += st_oldlen - 1;
-    }
-
-  newlen = (vt_newlen - vt_oldlen) + (st_newlen - vt_oldlen);
-  char *content = (char *) calloc(i + 1 + count * newlen, sizeof(char));
+  content = (char *)calloc(1,sizeof(char));
   if (!content) {
     fclose(fp);
     free(template);
     return NULL;
   }
 
-#if 0
+  
   i = 0;
-  while (*template) {
+  while(*template != '\0') {
     if (strstr(template,VIRUS_TOKEN) == template) {
-      g_stpcpy(&content[i], virus),
-          i += vt_newlen,template += vt_oldlen;
+
+      content = (char *)realloc(content,strlen(content) + vt_newlen + sizeof(char));
+      strcat(content,virus);
+      i += vt_newlen,template += vt_oldlen;
     } else if (strstr(template,SENDER_TOKEN) == template) {
-      g_stpcpy(&content[i],virus_sender),
-          i += st_newlen,template += st_oldlen;
-    }else
+      content = (char *)realloc(content,strlen(content) + st_newlen + sizeof(char));
+      strcat(content,virus_sender);
+      i += st_newlen, template += st_oldlen;
+    } else {
+      content = (char *)realloc(content,strlen(content) + sizeof(char));
       content[i++] = *template++;
+    }
   }
-#endif
   content[i] = '\0';
+
   return content;
 }
 
@@ -285,27 +283,6 @@ int send_notify(SMFSettings_T *settings, ClamAVSettings_T *clam_settings,SMFSess
       data.clam_settings = clam_settings;
       data.mail_content = mail_content;
       smf_envelope_foreach_rcpt(session->envelope, rcpt_handler, &data);
-#if 0
-      if (session->envelope_to != NULL) {
-        for (i=0; i < session->envelope_to_num; i++) {
-          STRACE(TRACE_DEBUG,session->id,"sending notification to [%s]",session->envelope_to[i]->addr);
-          generate_message(session,clam_settings->notification_sender,
-              clam_settings->notification_subject,
-              mail_content,
-              session->envelope_to[i]->addr,
-              settings->nexthop);
-        }
-      } else if (session->message_to != NULL) {
-        for (i=0; i < session->message_to_num; i++) {
-          STRACE(TRACE_DEBUG,session->id,"sending notification to [%s]",session->message_to[i]->addr);
-          generate_message(session,clam_settings->notification_sender,
-              clam_settings->notification_subject,
-              mail_content,
-              session->message_to[i]->addr,
-              settings->nexthop);
-        }
-      }
-#endif 
     
     if (clam_settings->notification == 2) {
       if (session->envelope->sender != NULL) {
@@ -357,7 +334,7 @@ int load(SMFSettings_T *settings, SMFSession_T *session) {
     }
   }
 
-  transmit = (char *)malloc((BUFSIZE + 4) * sizeof(char));
+  transmit = (char *)calloc((BUFSIZE + 4) * sizeof(char),sizeof(char));
 
   sa.sin_family = AF_INET;
   sa.sin_port = htons(clam_settings->port);
@@ -450,10 +427,11 @@ int load(SMFSettings_T *settings, SMFSession_T *session) {
 
   if (strcasecmp(clam_result,"OK")!=0) {
     p1 = strstr(clam_result," FOUND");
-    len = strlen(clam_result) - strlen(p1) - 1;
-    p2 = calloc(len,sizeof(char));
+    len = strlen(clam_result) - strlen(p1) + 1;
+    p2 = (char *)calloc(len,sizeof(char));
     strncpy(p2,clam_result,len);
-    STRACE(TRACE_DEBUG,session->id,"Virus found: %s", p2);
+    p2[len] = '\0';
+    STRACE(TRACE_DEBUG,session->id,"Virus found: [%s]", p2);
 
     if (clam_settings->reject_virus) {
       if (clam_settings->reject_msg != NULL)
