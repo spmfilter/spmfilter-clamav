@@ -151,6 +151,7 @@ char *get_template(SMFSession_T *session, char *template_file, char *virus, char
   FILE *fp;
   int i, errno;
   char *template = NULL;
+  char *it = NULL;
   int vt_newlen = strlen(virus);
   int st_newlen = strlen(virus_sender);
   int vt_oldlen = strlen(VIRUS_TOKEN);
@@ -180,7 +181,7 @@ char *get_template(SMFSession_T *session, char *template_file, char *virus, char
     fclose(fp);
     return NULL;
   }
-  template = (char *)calloc(len,sizeof(char));
+  template = (char *)calloc(len + 1,sizeof(char));
 
   if (fread(template,sizeof(char),len,fp) == 0) {
     STRACE(TRACE_ERR,session->id,"seek failed: %s",strerror(errno));
@@ -201,23 +202,23 @@ char *get_template(SMFSession_T *session, char *template_file, char *virus, char
 
   
   i = 0;
-  while(*template != '\0') {
-    if (strstr(template,VIRUS_TOKEN) == template) {
-
-      content = (char *)realloc(content,strlen(content) + vt_newlen + sizeof(char));
+  it = template;
+  while(*it != '\0') {
+    if (strstr(it,VIRUS_TOKEN) == it) {
+      content = (char *)realloc(content,i + vt_newlen + sizeof(char));
       strcat(content,virus);
-      i += vt_newlen,template += vt_oldlen;
-    } else if (strstr(template,SENDER_TOKEN) == template) {
-      content = (char *)realloc(content,strlen(content) + st_newlen + sizeof(char));
+      i += vt_newlen,it += vt_oldlen;
+    } else if (strstr(it,SENDER_TOKEN) == it) {
+      content = (char *)realloc(content,i + st_newlen + sizeof(char));
       strcat(content,virus_sender);
-      i += st_newlen, template += st_oldlen;
+      i += st_newlen, it += st_oldlen;
     } else {
-      content = (char *)realloc(content,strlen(content) + sizeof(char));
-      content[i++] = *template++;
+      content = (char *)realloc(content,i + 1 + sizeof(char));
+      content[i++] = *it++;
     }
   }
   content[i] = '\0';
-
+  free(template);
   return content;
 }
 
@@ -295,6 +296,7 @@ int send_notify(SMFSettings_T *settings, ClamAVSettings_T *clam_settings,SMFSess
       }
     }
   }
+  free(mail_content);
   return 0;
 }
 
@@ -427,8 +429,8 @@ int load(SMFSettings_T *settings, SMFSession_T *session) {
 
   if (strcasecmp(clam_result,"OK")!=0) {
     p1 = strstr(clam_result," FOUND");
-    len = strlen(clam_result) - strlen(p1) + 1;
-    p2 = (char *)calloc(len,sizeof(char));
+    len = strlen(clam_result) - strlen(p1);
+    p2 = (char *)calloc(len + 1,sizeof(char));
     strncpy(p2,clam_result,len);
     p2[len] = '\0';
     STRACE(TRACE_DEBUG,session->id,"Virus found: [%s]", p2);
