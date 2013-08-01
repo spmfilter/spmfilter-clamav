@@ -156,6 +156,7 @@ char *get_template(SMFSession_T *session, char *template_file, char *virus, char
   int st_newlen = strlen(virus_sender);
   int vt_oldlen = strlen(VIRUS_TOKEN);
   int st_oldlen = strlen(SENDER_TOKEN);
+  int content_len = 0;
   long len;
   char *content = NULL;
 
@@ -191,9 +192,10 @@ char *get_template(SMFSession_T *session, char *template_file, char *virus, char
   }
   
   fclose(fp);
-  template[strlen(template)] = '\0';
+  template[len] = '\0';
 
-  content = (char *)calloc(1,sizeof(char));
+  content_len = len - vt_oldlen - st_oldlen + vt_newlen + st_newlen + sizeof(char);
+  content = (char *)calloc(content_len,sizeof(char));
   if (!content) {
     fclose(fp);
     free(template);
@@ -205,15 +207,12 @@ char *get_template(SMFSession_T *session, char *template_file, char *virus, char
   it = template;
   while(*it != '\0') {
     if (strstr(it,VIRUS_TOKEN) == it) {
-      content = (char *)realloc(content,i + vt_newlen + sizeof(char));
       strcat(content,virus);
       i += vt_newlen,it += vt_oldlen;
     } else if (strstr(it,SENDER_TOKEN) == it) {
-      content = (char *)realloc(content,i + st_newlen + sizeof(char));
       strcat(content,virus_sender);
       i += st_newlen, it += st_oldlen;
     } else {
-      content = (char *)realloc(content,i + 1 + sizeof(char));
       content[i++] = *it++;
     }
   }
@@ -296,7 +295,8 @@ int send_notify(SMFSettings_T *settings, ClamAVSettings_T *clam_settings,SMFSess
       }
     }
   }
-  free(mail_content);
+  if (mail_content != NULL)
+    free(mail_content);
   return 0;
 }
 
