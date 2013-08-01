@@ -50,7 +50,6 @@ set(CPACK_SOURCE_PACKAGE_FILE_NAME "${CPACK_PACKAGE_NAME}-${PLUGIN_VERSION}")
 set(CPACK_SOURCE_GENERATOR TGZ)
 set(CPACK_SOURCE_IGNORE_FILES
 "\\\\.git"
-"nbproject"
 "build"
 "build\\\\.properties"
 )
