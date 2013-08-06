@@ -68,6 +68,7 @@ void free_clam_config(ClamAVSettings_T *clam_settings) {
 
 ClamAVSettings_T *get_clam_config(SMFSettings_T *settings, SMFSession_T *session) {
   ClamAVSettings_T *clam_settings = NULL;
+  char *p = NULL;
 
   clam_settings = (ClamAVSettings_T *)calloc((size_t)1, sizeof(ClamAVSettings_T));
   clam_settings->host = NULL;
@@ -76,10 +77,12 @@ ClamAVSettings_T *get_clam_config(SMFSettings_T *settings, SMFSession_T *session
   clam_settings->notification_subject = NULL;
   clam_settings->header_name = NULL;
 
-  clam_settings->host = smf_settings_group_get(settings,"clamav","host");
-  if (clam_settings->host == NULL) {
+  p = smf_settings_group_get(settings,"clamav","host");
+  if (p != NULL) 
+    clam_settings->host = strdup(p);
+  else
     clam_settings->host = strdup("localhost");
-  }
+  
 
   clam_settings->port = smf_settings_group_get_integer(settings,"clamav","port");
   if (!clam_settings->port) 
@@ -93,7 +96,9 @@ ClamAVSettings_T *get_clam_config(SMFSettings_T *settings, SMFSession_T *session
   if (!clam_settings->notification)
     clam_settings->notification = 0;
 
-  clam_settings->notification_template = smf_settings_group_get(settings,"clamav","notification_template");
+  p = smf_settings_group_get(settings,"clamav","notification_template");
+  if (p != NULL)
+    clam_settings->notification_template = strdup(p);
 
   if(clam_settings->notification != 0) {
     if(clam_settings->notification_template == NULL) {
@@ -106,22 +111,28 @@ ClamAVSettings_T *get_clam_config(SMFSettings_T *settings, SMFSession_T *session
       free_clam_config(clam_settings);
       return NULL;
     }
-    clam_settings->notification_sender = smf_settings_group_get(settings,"clamav","notification_sender");
-    if(clam_settings->notification_sender == NULL) {
+
+    p = smf_settings_group_get(settings,"clamav","notification_sender");
+    if(p == NULL) {
       TRACE(TRACE_ERR, "notification enabled but \"notification_sender\" undefined");
       free_clam_config(clam_settings);
       return NULL;
-    }
+    } else 
+      clam_settings->notification_sender = strdup(p);
   }
 
-  clam_settings->notification_subject = smf_settings_group_get(settings,"clamav","notification_subject");
-  if (clam_settings->notification_subject == NULL)
+  p = smf_settings_group_get(settings,"clamav","notification_subject");
+  if (p != NULL)
+    clam_settings->notification_subject = strdup(p);
+  else
     clam_settings->notification_subject = strdup("Virus notification");
 
   clam_settings->add_header = smf_settings_group_get_boolean(settings,"clamav","add_header");
   
-  clam_settings->header_name = smf_settings_group_get(settings,"clamav","header_name");
-  if (clam_settings->header_name == NULL)
+  p = smf_settings_group_get(settings,"clamav","header_name");
+  if (p != NULL)
+    clam_settings->header_name = strdup(p);  
+  else
     clam_settings->header_name = strdup("X-Spmfilter-Virus-Scanned");
 
   clam_settings->scan_direction = smf_settings_group_get_integer(settings,"clamav","scan_direction");
@@ -129,7 +140,10 @@ ClamAVSettings_T *get_clam_config(SMFSettings_T *settings, SMFSession_T *session
     clam_settings->scan_direction = 0;
 
   clam_settings->reject_virus = smf_settings_group_get_boolean(settings,"clamav","reject_virus");
-  clam_settings->reject_msg = smf_settings_group_get(settings,"clamav","reject_msg");
+
+  p = smf_settings_group_get(settings,"clamav","reject_msg");
+  if (p != NULL)
+    clam_settings->reject_msg = strdup(p);
 
   STRACE(TRACE_DEBUG,session->id,"clam_settings->host: %s",clam_settings->host);
   STRACE(TRACE_DEBUG,session->id,"clam_settings->port: %d",clam_settings->port);
