@@ -1,6 +1,13 @@
 cmake_minimum_required(VERSION 2.6)
-
 project(spmfilter-clamav)
+
+# NO NEED TO CHANGE ANYTHING BELOW
+
+# include modules
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/Modules/")
+include(${CMAKE_MODULE_PATH}/GNUInstallDirs.cmake)
+include(FindPkgConfig)
+include(SMFMacros)
 
 # check for build.properties
 include("${CMAKE_SOURCE_DIR}/build.properties" OPTIONAL)
@@ -9,18 +16,6 @@ include("${CMAKE_SOURCE_DIR}/build.properties" OPTIONAL)
 if(PREFIX)
     SET(CMAKE_INSTALL_PREFIX ${PREFIX})
 endif(PREFIX)
-
-# check libdir
-if(NOT LIBDIR)
-	set(LIBDIR "lib")
-endif(NOT LIBDIR)
-
-# NO NEED TO CHANGE ANYTHING BELOW
-set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/Modules/")
-
-# includes
-include(FindPkgConfig)
-include(SMFMacros)
 
 pkg_search_module(SPMFILTER REQUIRED spmfilter >= 0.6)
 if(SPMFILTER_FOUND)
