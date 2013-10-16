@@ -5,7 +5,6 @@ project(spmfilter-clamav)
 
 # include modules
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/Modules/")
-include(${CMAKE_MODULE_PATH}/GNUInstallDirs.cmake)
 include(FindPkgConfig)
 include(SMFMacros)
 
