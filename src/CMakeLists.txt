@@ -3,6 +3,8 @@ set(PLUGIN_SRC
 )
 
 add_library(clamav SHARED ${PLUGIN_SRC})
+set_property(TARGET clamav PROPERTY VERSION ${PLUGIN_VERSION})
+set_property(TARGET clamav PROPERTY SOVERSION ${PLUGIN_SO_VERSION})
 target_link_libraries(clamav ${SPMFILTER_LIBRARIES})
 
 install(TARGETS clamav
