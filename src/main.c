@@ -447,7 +447,7 @@ int load(SMFSettings_T *settings, SMFSession_T *session) {
     p2 = (char *)calloc(len + 1,sizeof(char));
     strncpy(p2,clam_result,len);
     p2[len] = '\0';
-    STRACE(TRACE_DEBUG,session->id,"Virus found: [%s]", p2);
+    STRACE(TRACE_WARNING,session->id,"Virus found: [%s]", p2);
 
     if (clam_settings->reject_virus) {
       if (clam_settings->reject_msg != NULL)
